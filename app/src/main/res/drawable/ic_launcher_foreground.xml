@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 大星光（四角内凹星光，白色） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,17 C55.9,32.3 61.8,38.2 77,40.2 C61.8,42.2 55.9,48.1 54,63.4 C52.1,48.1 46.2,42.2 31,40.2 C46.2,38.2 52.1,32.3 54,17 Z" />
+    <!-- 小星光（淡紫） -->
+    <path
+        android:fillColor="#C9BDFF"
+        android:pathData="M78,64 C79.1,70.3 82.1,73.3 88.4,74.4 C82.1,75.5 79.1,78.5 78,84.8 C76.9,78.5 73.9,75.5 67.6,74.4 C73.9,73.3 76.9,70.3 78,64 Z" />
+    <!-- 底角小圆点（淡紫） -->
+    <path
+        android:fillColor="#C9BDFF"
+        android:pathData="M32,76 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0 Z" />
+</vector>
