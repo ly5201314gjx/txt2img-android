@@ -73,14 +73,17 @@ fun GlassImageDialog(
         Column(
             Modifier
                 .fillMaxWidth()
+                .heightIn(max = 620.dp)
                 .glassCard(RoundedCornerShape(16.dp))
-                .padding(14.dp),
+                .padding(14.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
             AsyncImage(
                 model = file,
                 contentDescription = prompt,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 340.dp)
                     .clip(RoundedCornerShape(10.dp)),
             )
             Spacer(Modifier.height(10.dp))
@@ -336,14 +339,17 @@ fun ImageDetailDialog(
         Column(
             Modifier
                 .fillMaxWidth()
+                .heightIn(max = 620.dp)
                 .glassCard(RoundedCornerShape(16.dp))
-                .padding(14.dp),
+                .padding(14.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
             AsyncImage(
                 model = file,
                 contentDescription = prompt,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 340.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .clickable(onClick = onViewImage),
             )
