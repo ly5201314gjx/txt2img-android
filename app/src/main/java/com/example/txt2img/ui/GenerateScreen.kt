@@ -1,6 +1,8 @@
 package com.example.txt2img.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -45,6 +47,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
@@ -57,6 +60,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -113,14 +117,18 @@ private val SAMPLE_PROMPTS = listOf(
 private val RATIO_OPTIONS = listOf("1:1", "3:4", "4:3", "9:16", "16:9")
 private val RATIO_SIZES = listOf("1024x1024", "768x1024", "1024x768", "720x1280", "1280x720")
 
-// 风格（可为无风格）→ prompt 后缀
+// 风格（可为无风格）→ prompt 注入模板；选择风格后可不填提示词直接生图
 private val STYLE_OPTIONS = listOf(
     "无风格" to "",
-    "治愈系" to "，治愈系风格，色调温柔，画面清新治愈",
-    "赛博朋克" to "，赛博朋克风格，霓虹灯光，未来都市，科技感",
-    "胶片" to "，胶片摄影质感，颗粒感，复古色调",
-    "水彩" to "，水彩画风格，柔和晕染，通透轻盈",
-    "插画" to "，现代插画风格，构图干净，扁平化",
+    "轻度美颜" to "，保持人物面部结构、五官轮廓完全不变，仅轻微提亮肤色、柔化皮肤质感，去除明显瑕疵，自然真实，不能改变脸型与五官比例，subtle skin retouching only",
+    "风景美化" to "，增强色彩通透度与光影层次，天空更通透、水面更清澈，保留景物原有结构，不过度处理，enhanced landscape with natural color and light",
+    "主体突出" to "，主体清晰锐利，背景适度虚化，强化主体光影对比与质感，构图聚焦于画面主体，subject-focused with bokeh background",
+    "二次元" to "，动漫二次元风格，线条干净，色彩明快，日系插画质感，anime style illustration",
+    "漫画" to "，美式漫画风格，粗线条描边，高对比色块，网点阴影，comic book style",
+    "卡通" to "，卡通风格，圆润造型，明快配色，可爱亲和，cartoon style",
+    "插画" to "，现代插画风格，构图干净，扁平化设计，层次分明，modern flat illustration",
+    "艺术" to "，艺术化处理，油画质感，笔触明显，光影富有表现力，fine art oil painting style",
+    "水彩" to "，水彩画风格，柔和晕染，通透轻盈，纸张纹理，watercolor style",
 )
 
 // 清晰度 → (OpenAI quality 参数, 推理步数)
@@ -159,6 +167,12 @@ fun GenerateScreen() {
     var genState by remember { mutableStateOf<GenState>(GenState.Idle) }
     var showModelPicker by remember { mutableStateOf(false) }
     var pickedCat by remember { mutableStateOf("") }
+    var agentEnabled by rememberSaveable { mutableStateOf(false) }
+    var showAgentPicker by remember { mutableStateOf(false) }
+    var optimizing by remember { mutableStateOf(false) }
+    var optimizeDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var reversing by remember { mutableStateOf(false) }
+    var reverseDialog by remember { mutableStateOf<ImageClient.ReverseResult?>(null) }
 
     val providersJson by prefs.providersJson.collectAsState(initial = "[]")
     val currentJson by prefs.currentJson.collectAsState(initial = "{}")
@@ -172,6 +186,21 @@ fun GenerateScreen() {
     val baseUrl = activeProvider?.url.orEmpty()
     val apiKey = activeProvider?.key.orEmpty()
     val selectedModel = current.model
+
+    val agentJson by prefs.agentJson.collectAsState(initial = "{}")
+    val agentSel = remember(agentJson) { PrefsJson.parseCurrent(agentJson) }
+    val visionJson by prefs.visionJson.collectAsState(initial = "{}")
+    val visionOk = remember(visionJson, current.providerId, selectedModel) {
+        if (current.providerId.isEmpty() || selectedModel.isEmpty()) {
+            false
+        } else {
+            try {
+                org.json.JSONObject(visionJson).optString("${current.providerId}|$selectedModel", "") == "yes"
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
 
     val scope = rememberCoroutineScope()
 
@@ -264,63 +293,131 @@ fun GenerateScreen() {
                     onRemoveRef = { i -> refImages = refImages.filterIndexed { idx, _ -> idx != i } },
                     modelName = selectedModel,
                     genState = genState,
+                    agentEnabled = agentEnabled,
+                    agentModelName = if (agentSel.model.isBlank()) "" else agentSel.model,
+                    optimizing = optimizing,
+                    visionOk = visionOk,
+                    reversing = reversing,
+                    onToggleAgent = { agentEnabled = !agentEnabled },
+                    onOpenAgentPicker = {
+                        if (providers.isEmpty()) {
+                            Toast.makeText(context, "请先添加供应商", Toast.LENGTH_SHORT).show()
+                            currentTab = 2
+                        } else {
+                            showAgentPicker = true
+                        }
+                    },
+                    onReverse = {
+                        if (refImages.isEmpty()) {
+                            Toast.makeText(context, "请先上传参考图", Toast.LENGTH_SHORT).show()
+                        } else if (!visionOk) {
+                            Toast.makeText(context, "当前模型未通过视觉测试，请先选择视觉模型", Toast.LENGTH_SHORT).show()
+                            showModelPicker = true
+                        } else if (reversing) {
+                            // 进行中忽略
+                        } else {
+                            reversing = true
+                            val refFile = refImages.first()
+                            scope.launch {
+                                val mime = mimeOf(refFile)
+                                val dataUri = "data:$mime;base64," +
+                                    android.util.Base64.encodeToString(refFile.readBytes(), android.util.Base64.NO_WRAP)
+                                ImageClient.reversePrompt(baseUrl, apiKey, selectedModel, dataUri)
+                                    .onSuccess { r -> reverseDialog = r }
+                                    .onFailure { e ->
+                                        Toast.makeText(context, "反推失败：${e.message?.take(80)}", Toast.LENGTH_SHORT).show()
+                                    }
+                                reversing = false
+                            }
+                        }
+                    },
                     onGenerate = {
                         if (activeProvider == null || baseUrl.isBlank() || apiKey.isBlank() || selectedModel.isBlank()) {
                             genState = GenState.Failed("请先在「我的」中配置供应商并选择模型")
                             return@GeneratePage
                         }
-                        val userPrompt = prompt.trim().ifEmpty { SAMPLE_PROMPTS.first() }
-                        val fullPrompt = userPrompt + STYLE_OPTIONS[styleIndex].second
+                        val styleOnly = STYLE_OPTIONS[styleIndex].second.removePrefix("，")
+                            .ifEmpty { SAMPLE_PROMPTS.first() }
+                        val userPrompt = prompt.trim().ifEmpty { styleOnly }
                         val (qualityParam, steps) = qualityFor(qualityIndex)
-                        genState = GenState.Loading
-                        // 前台服务保活：切后台/锁屏不中断生成
-                        KeepAliveService.start(context)
-                        scope.launch {
-                            val t0 = System.currentTimeMillis()
-                            val refs = refImages.map { f ->
-                                RefImage(f.readBytes(), mimeOf(f))
-                            }
-                            ImageClient.generate(
-                                GenRequest(
-                                    baseUrl = baseUrl,
-                                    apiKey = apiKey,
-                                    model = selectedModel,
-                                    prompt = fullPrompt,
-                                    count = COUNT_VALUES[countIndex],
-                                    size = RATIO_SIZES[ratioIndex],
-                                    qualityParam = qualityParam,
-                                    steps = steps,
-                                    refImages = refs,
-                                ),
-                            ).onSuccess { outcome ->
-                                val elapsed = System.currentTimeMillis() - t0
-                                val saved = mutableListOf<String>()
-                                val now = System.currentTimeMillis()
-                                val refName = refs.firstOrNull()?.let { store.saveRef(it.bytes, it.mime) }
-                                outcome.images.forEachIndexed { idx, bytes ->
-                                    store.save(bytes)?.let { name ->
-                                        prefs.appendImage(
-                                            prompt = fullPrompt,
-                                            time = now + idx,
-                                            file = name,
-                                            refFile = refName,
-                                            durationMs = elapsed,
-                                            ratio = RATIO_OPTIONS[ratioIndex],
-                                        )
-                                        saved.add(name)
+
+                        val doGenerate: (String) -> Unit = { userText ->
+                            val fullPrompt = userText + STYLE_OPTIONS[styleIndex].second
+                            genState = GenState.Loading
+                            // 前台服务保活：切后台/锁屏不中断生成
+                            KeepAliveService.start(context)
+                            scope.launch {
+                                val t0 = System.currentTimeMillis()
+                                val refs = refImages.map { f ->
+                                    RefImage(f.readBytes(), mimeOf(f))
+                                }
+                                ImageClient.generate(
+                                    GenRequest(
+                                        baseUrl = baseUrl,
+                                        apiKey = apiKey,
+                                        model = selectedModel,
+                                        prompt = fullPrompt,
+                                        count = COUNT_VALUES[countIndex],
+                                        size = RATIO_SIZES[ratioIndex],
+                                        qualityParam = qualityParam,
+                                        steps = steps,
+                                        refImages = refs,
+                                    ),
+                                ).onSuccess { outcome ->
+                                    val elapsed = System.currentTimeMillis() - t0
+                                    val saved = mutableListOf<String>()
+                                    val now = System.currentTimeMillis()
+                                    val refName = refs.firstOrNull()?.let { store.saveRef(it.bytes, it.mime) }
+                                    outcome.images.forEachIndexed { idx, bytes ->
+                                        store.save(bytes)?.let { name ->
+                                            prefs.appendImage(
+                                                prompt = fullPrompt,
+                                                time = now + idx,
+                                                file = name,
+                                                refFile = refName,
+                                                durationMs = elapsed,
+                                                ratio = RATIO_OPTIONS[ratioIndex],
+                                            )
+                                            saved.add(name)
+                                        }
                                     }
+                                    KeepAliveService.stop(context)
+                                    if (saved.isNotEmpty()) {
+                                        genState = GenState.Ready(saved, fullPrompt)
+                                        Notifier.notifyGenerationDone(context, saved.size, fullPrompt)
+                                    } else {
+                                        genState = GenState.Failed("图片保存失败")
+                                    }
+                                }.onFailure { e ->
+                                    KeepAliveService.stop(context)
+                                    genState = GenState.Failed(e.message ?: "生成失败")
                                 }
-                                KeepAliveService.stop(context)
-                                if (saved.isNotEmpty()) {
-                                    genState = GenState.Ready(saved, fullPrompt)
-                                    Notifier.notifyGenerationDone(context, saved.size, fullPrompt)
-                                } else {
-                                    genState = GenState.Failed("图片保存失败")
-                                }
-                            }.onFailure { e ->
-                                KeepAliveService.stop(context)
-                                genState = GenState.Failed(e.message ?: "生成失败")
                             }
+                        }
+
+                        if (agentEnabled) {
+                            // Agent 模式：先扶正提示词，预览后应用/暂不应用
+                            if (optimizing) return@GeneratePage
+                            val ap = providers.find { it.id == agentSel.providerId }
+                            if (ap == null || agentSel.model.isBlank()) {
+                                Toast.makeText(context, "请先选择扶正模型", Toast.LENGTH_SHORT).show()
+                                showAgentPicker = true
+                                return@GeneratePage
+                            }
+                            optimizing = true
+                            scope.launch {
+                                ImageClient.optimizePrompt(ap.url, ap.key, agentSel.model, userPrompt)
+                                    .onSuccess { opt ->
+                                        optimizing = false
+                                        optimizeDialog = userPrompt to opt
+                                    }
+                                    .onFailure { e ->
+                                        optimizing = false
+                                        genState = GenState.Failed("提示词扶正失败：${e.message?.take(80)}")
+                                    }
+                            }
+                        } else {
+                            doGenerate(userPrompt)
                         }
                     },
                     onModelClick = { showModelPicker = true },
@@ -390,12 +487,32 @@ fun GenerateScreen() {
             )
         }
     }
-
-    // 模型快捷选择面板
-    if (showModelPicker) {        ModelPickerDialog(
+    // 模型快捷选择面板（生成模型，选中后自动做视觉能力测试）
+    if (showModelPicker) {
+        ModelPickerDialog(
             providers = providers,
             current = current,
             onPick = { pid, m ->
+                val key = "$pid|$m"
+                val cached = try {
+                    org.json.JSONObject(visionJson).optString(key, "")
+                } catch (e: Exception) {
+                    ""
+                }
+                if (cached.isEmpty()) {
+                    val p = providers.find { it.id == pid }
+                    if (p != null) {
+                        scope.launch {
+                            val ok = ImageClient.testVision(p.url, p.key, m).isSuccess
+                            prefs.saveVisionResult(key, ok)
+                            Toast.makeText(
+                                context,
+                                if (ok) "该模型支持图片识别，已启用反推" else "该模型不支持图片识别，反推不可用",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                }
                 scope.launch {
                     prefs.saveCurrent(pid, m)
                     prefs.saveProviders(
@@ -410,6 +527,132 @@ fun GenerateScreen() {
             },
             onDismiss = { showModelPicker = false },
         )
+    }
+
+    // Agent 扶正模型选择面板
+    if (showAgentPicker) {
+        ModelPickerDialog(
+            providers = providers,
+            current = agentSel,
+            title = "选择扶正模型",
+            subtitle = "任意供应商的模型均可用于提示词优化",
+            onPick = { pid, m ->
+                scope.launch { prefs.saveAgent(pid, m) }
+                showAgentPicker = false
+            },
+            onGoConfig = {
+                showAgentPicker = false
+                currentTab = 2
+            },
+            onDismiss = { showAgentPicker = false },
+        )
+    }
+
+    // 扶正结果预览
+    optimizeDialog?.let { (orig, opt) ->
+        OptimizePreviewDialog(
+            original = orig,
+            optimized = opt,
+            onApply = {
+                prompt = opt.take(MAX_PROMPT)
+                agentEnabled = false
+                optimizeDialog = null
+                // 应用后直接生图
+                val styleOnly = STYLE_OPTIONS[styleIndex].second.removePrefix("，")
+                    .ifEmpty { SAMPLE_PROMPTS.first() }
+                val (qualityParam, steps) = qualityFor(qualityIndex)
+                val doGenerate: (String) -> Unit = { userText ->
+                    val fullPrompt = userText + STYLE_OPTIONS[styleIndex].second
+                    genState = GenState.Loading
+                    KeepAliveService.start(context)
+                    scope.launch {
+                        val t0 = System.currentTimeMillis()
+                        val refs = refImages.map { f -> RefImage(f.readBytes(), mimeOf(f)) }
+                        ImageClient.generate(
+                            GenRequest(
+                                baseUrl = baseUrl,
+                                apiKey = apiKey,
+                                model = selectedModel,
+                                prompt = fullPrompt,
+                                count = COUNT_VALUES[countIndex],
+                                size = RATIO_SIZES[ratioIndex],
+                                qualityParam = qualityParam,
+                                steps = steps,
+                                refImages = refs,
+                            ),
+                        ).onSuccess { outcome ->
+                            val elapsed = System.currentTimeMillis() - t0
+                            val saved = mutableListOf<String>()
+                            val now = System.currentTimeMillis()
+                            val refName = refs.firstOrNull()?.let { store.saveRef(it.bytes, it.mime) }
+                            outcome.images.forEachIndexed { idx, bytes ->
+                                store.save(bytes)?.let { name ->
+                                    prefs.appendImage(
+                                        prompt = fullPrompt,
+                                        time = now + idx,
+                                        file = name,
+                                        refFile = refName,
+                                        durationMs = elapsed,
+                                        ratio = RATIO_OPTIONS[ratioIndex],
+                                    )
+                                    saved.add(name)
+                                }
+                            }
+                            KeepAliveService.stop(context)
+                            if (saved.isNotEmpty()) {
+                                genState = GenState.Ready(saved, fullPrompt)
+                                Notifier.notifyGenerationDone(context, saved.size, fullPrompt)
+                            } else {
+                                genState = GenState.Failed("图片保存失败")
+                            }
+                        }.onFailure { e ->
+                            KeepAliveService.stop(context)
+                            genState = GenState.Failed(e.message ?: "生成失败")
+                        }
+                    }
+                }
+                doGenerate(opt)
+            },
+            onCancel = { optimizeDialog = null },
+        )
+    }
+
+    // 反推结果弹窗
+    reverseDialog?.let { r ->
+        val sourceFile = refImages.firstOrNull()
+        if (sourceFile != null) {
+            ReverseResultDialog(
+                sourceFile = sourceFile,
+                category = r.category,
+                prompt = r.prompt,
+                onCopy = {
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("reverse", r.prompt))
+                    Toast.makeText(context, "反推提示词已复制", Toast.LENGTH_SHORT).show()
+                },
+                onApplyBox = {
+                    prompt = r.prompt.take(MAX_PROMPT)
+                    reverseDialog = null
+                    Toast.makeText(context, "已应用到生成框，可直接生图", Toast.LENGTH_SHORT).show()
+                },
+                onSave = {
+                    scope.launch {
+                        val name = store.save(sourceFile.readBytes())
+                        if (name != null) {
+                            prefs.appendImage(
+                                prompt = r.prompt,
+                                time = System.currentTimeMillis(),
+                                file = name,
+                                type = "reverse",
+                            )
+                        }
+                    }
+                    reverseDialog = null
+                    Toast.makeText(context, "已保存到作品页", Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { reverseDialog = null },
+            )
+        }
     }
 }
 
@@ -432,6 +675,14 @@ private fun GeneratePage(
     onRemoveRef: (Int) -> Unit,
     modelName: String,
     genState: GenState,
+    agentEnabled: Boolean,
+    agentModelName: String,
+    optimizing: Boolean,
+    visionOk: Boolean,
+    reversing: Boolean,
+    onToggleAgent: () -> Unit,
+    onOpenAgentPicker: () -> Unit,
+    onReverse: () -> Unit,
     onGenerate: () -> Unit,
     onModelClick: () -> Unit,
 ) {
@@ -462,8 +713,22 @@ private fun GeneratePage(
             onModelClick = onModelClick,
         )
         Spacer(Modifier.height(10.dp))
+        ReverseRow(
+            visionOk = visionOk,
+            reversing = reversing,
+            onClick = onReverse,
+        )
+        Spacer(Modifier.height(8.dp))
+        AgentBar(
+            enabled = agentEnabled,
+            modelName = agentModelName,
+            optimizing = optimizing,
+            onToggle = onToggleAgent,
+            onPickModel = onOpenAgentPicker,
+        )
+        Spacer(Modifier.height(10.dp))
         GenerateButton(
-            loading = genState is GenState.Loading,
+            loading = genState is GenState.Loading || optimizing,
             onClick = onGenerate,
         )
         when (val s = genState) {
@@ -1020,6 +1285,125 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+// ============ 图片反推（多模态） ============
+
+@Composable
+private fun ReverseRow(visionOk: Boolean, reversing: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .glassCard(RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.Search,
+            contentDescription = null,
+            tint = Palette.InkMid,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "图片反推提示词",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkStrong,
+            )
+            Text(
+                "上传参考图，让多模态模型识别并生成细腻完整提示词",
+                fontSize = 8.sp,
+                color = Palette.InkLight,
+            )
+        }
+        Text(
+            when {
+                reversing -> "反推中…"
+                visionOk -> "可用 ＞"
+                else -> "需视觉模型 ＞"
+            },
+            fontSize = 9.sp,
+            color = if (visionOk) Palette.Purple else Palette.InkLight,
+            fontWeight = if (visionOk) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
+}
+
+// ============ Agent 提示词扶正 ============
+
+@Composable
+private fun AgentBar(
+    enabled: Boolean,
+    modelName: String,
+    optimizing: Boolean,
+    onToggle: () -> Unit,
+    onPickModel: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .glassCard(RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.AutoAwesome,
+            contentDescription = null,
+            tint = if (enabled) Palette.Purple else Palette.InkLight,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "Agent 提示词扶正",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Palette.InkStrong,
+        )
+        Spacer(Modifier.weight(1f))
+        if (enabled) {
+            if (optimizing) {
+                Text(
+                    "扶正中…",
+                    fontSize = 9.sp,
+                    color = Palette.Purple,
+                )
+            } else {
+                Text(
+                    if (modelName.isBlank()) "选择扶正模型 ＞" else "$modelName ＞",
+                    fontSize = 9.sp,
+                    color = Palette.Purple,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onPickModel),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        Box(
+            Modifier
+                .width(34.dp)
+                .height(20.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (enabled) Palette.Purple else Palette.InputBg)
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (enabled) "开" else "关",
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (enabled) Color.White else Palette.InkMid,
+            )
         }
     }
 }

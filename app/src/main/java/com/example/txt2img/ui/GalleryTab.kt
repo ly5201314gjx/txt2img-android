@@ -70,6 +70,7 @@ private data class ImageEntry(
     val cat: String,
     val durationMs: Long,
     val ratio: String,
+    val type: String,
 )
 
 private fun parseEntries(json: String): List<ImageEntry> = try {
@@ -86,6 +87,7 @@ private fun parseEntries(json: String): List<ImageEntry> = try {
                 cat = o.optString("cat", ""),
                 durationMs = o.optLong("dur", 0L),
                 ratio = o.optString("ratio", ""),
+                type = o.optString("type", ""),
             ),
         )
     }
@@ -256,10 +258,8 @@ fun GalleryTab(
                 items(shown, key = { it.file }) { e ->
                     val file = store.fileFor(e.file)
                     if (file.exists()) {
-                        AsyncImage(
-                            model = file,
-                            contentDescription = e.prompt,
-                            modifier = Modifier
+                        Box(
+                            Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(10.dp))
@@ -267,7 +267,30 @@ fun GalleryTab(
                                     onClick = { viewer = e },
                                     onLongClick = { menuTarget = e },
                                 ),
-                        )
+                        ) {
+                            AsyncImage(
+                                model = file,
+                                contentDescription = e.prompt,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            if (e.type == "reverse") {
+                                Box(
+                                    Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(6.dp)
+                                        .clip(RoundedCornerShape(99.dp))
+                                        .background(Palette.Purple.copy(alpha = 0.9f))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        "反推",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

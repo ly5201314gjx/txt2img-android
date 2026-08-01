@@ -951,12 +951,14 @@ fun AboutDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * 生成页模型快捷选择面板（底部弹出）。
+ * 模型快捷选择面板（底部弹出）：生成模型 / Agent 扶正模型通用。
  */
 @Composable
 fun ModelPickerDialog(
     providers: List<ProviderConfig>,
     current: CurrentSelection,
+    title: String = "选择模型",
+    subtitle: String = "点击即切换，无需保存",
     onPick: (String, String) -> Unit,
     onGoConfig: () -> Unit,
     onDismiss: () -> Unit,
@@ -973,14 +975,14 @@ fun ModelPickerDialog(
                     .heightIn(max = 480.dp),
             ) {
                 Text(
-                    "选择模型",
+                    title,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = Palette.InkTitle,
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "点击即切换，无需保存",
+                    subtitle,
                     fontSize = 9.sp,
                     color = Palette.InkLight,
                 )
@@ -1099,6 +1101,251 @@ fun ModelPickerDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Agent 扶正结果预览：原提示词 vs 优化后。
+ */
+@Composable
+fun OptimizePreviewDialog(
+    original: String,
+    optimized: String,
+    onApply: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Dialog(onDismissRequest = onCancel) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .glassCard(RoundedCornerShape(16.dp))
+                .padding(16.dp),
+        ) {
+            Text(
+                "提示词扶正完成",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkTitle,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "原提示词",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkLight,
+            )
+            Spacer(Modifier.height(3.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.InputBg)
+                    .padding(8.dp),
+            ) {
+                Text(
+                    original,
+                    fontSize = 9.sp,
+                    color = Palette.InkMid,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "优化后",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.Purple,
+            )
+            Spacer(Modifier.height(3.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 280.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.InputBg)
+                    .padding(8.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    optimized,
+                    fontSize = 10.sp,
+                    color = Palette.InkStrong,
+                    lineHeight = 15.sp,
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = onCancel),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "暂不应用",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable(onClick = onApply),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "应用并生成",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 图片反推结果弹窗。
+ */
+@Composable
+fun ReverseResultDialog(
+    sourceFile: File,
+    category: String,
+    prompt: String,
+    onCopy: () -> Unit,
+    onApplyBox: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 580.dp)
+                .glassCard(RoundedCornerShape(16.dp))
+                .padding(14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(
+                    model = sourceFile,
+                    contentDescription = "反推源图",
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        "图片反推完成",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Palette.InkTitle,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "类型：$category",
+                        fontSize = 9.sp,
+                        color = Palette.Purple,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 300.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.InputBg)
+                    .padding(8.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    prompt,
+                    fontSize = 10.sp,
+                    color = Palette.InkStrong,
+                    lineHeight = 15.sp,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = onCopy),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "复制",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = onApplyBox),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "用到生成框",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable(onClick = onSave),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "保存到作品",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.InputBg)
+                    .clickable(onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "关闭",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Palette.InkStrong,
+                )
             }
         }
     }

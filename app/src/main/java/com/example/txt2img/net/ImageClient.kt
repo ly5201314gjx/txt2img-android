@@ -115,6 +115,143 @@ object ImageClient {
         }
     }
 
+    // ============ Agent 提示词扶正 / 视觉测试 / 图片反推 ============
+
+    private fun chatRequest(baseUrl: String, apiKey: String, body: JSONObject): String {
+        val r = Request.Builder()
+            .url(base(baseUrl) + "/chat/completions")
+            .header("Authorization", "Bearer $apiKey")
+            .post(body.toString().toRequestBody(jsonMedia))
+            .build()
+        return client.newCall(r).execute().use { resp ->
+            if (!resp.isSuccessful) throw HttpException(resp.code, resp.body?.string().orEmpty())
+            resp.body?.string() ?: error("空响应")
+        }
+    }
+
+    private fun parseChatText(resp: String): String = try {
+        val msg = JSONObject(resp).optJSONArray("choices")
+            ?.optJSONObject(0)?.optJSONObject("message")
+        when (val content = msg?.opt("content")) {
+            is String -> content
+            is JSONArray -> {
+                val sb = StringBuilder()
+                for (i in 0 until content.length()) {
+                    val item = content.optJSONObject(i) ?: continue
+                    val t = item.optString("text", "")
+                    if (t.isNotEmpty()) sb.append(t)
+                }
+                sb.toString()
+            }
+            else -> ""
+        }
+    } catch (e: Exception) {
+        ""
+    }
+
+    /** Agent：把用户提示词扶正优化为更细腻完整的生图提示词。 */
+    suspend fun optimizePrompt(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        prompt: String,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val sys = "你是一位专业的 AI 绘画提示词优化师。用户会给你一段图片生成提示词，请将其优化为更细腻、更具体、可直接用于文生图模型的完整提示词。" +
+                "要求：1) 完全保留用户原意与核心描述；2) 补充光影、构图、色彩、质感等细节，但不要过度堆砌；" +
+                "3) 只输出提示词本体，不要任何解释、前缀、引号或编号。"
+            val body = JSONObject()
+                .put("model", model)
+                .put("messages", JSONArray()
+                    .put(JSONObject().put("role", "system").put("content", sys))
+                    .put(JSONObject().put("role", "user").put("content", prompt)))
+            val text = parseChatText(chatRequest(baseUrl, apiKey, body))
+            if (text.isBlank()) error("返回为空") else Result.success(text.trim())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun tinyTestImage(): String {
+        val bmp = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+        bmp.setPixel(0, 0, android.graphics.Color.RED)
+        val baos = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, baos)
+        bmp.recycle()
+        return "data:image/png;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+    }
+
+    /** 视觉能力测试：发送 1×1 测试图，能正常返回即视为视觉模型。 */
+    suspend fun testVision(baseUrl: String, apiKey: String, model: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val content = JSONArray()
+                    .put(JSONObject().put("type", "text").put("text", "这张图片是什么颜色？请只回答：红色 或 蓝色。"))
+                    .put(
+                        JSONObject()
+                            .put("type", "image_url")
+                            .put("image_url", JSONObject().put("url", tinyTestImage())),
+                    )
+                val body = JSONObject()
+                    .put("model", model)
+                    .put("messages", JSONArray()
+                        .put(JSONObject().put("role", "user").put("content", content)))
+                val text = parseChatText(chatRequest(baseUrl, apiKey, body))
+                if (text.isBlank()) error("返回为空") else Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    data class ReverseResult(val category: String, val prompt: String)
+
+    private val SYS_REVERSE = "你是图片理解与提示词反推专家。用户会发送一张图片，请：\n" +
+        "1. 先判断图片类型，从以下选择：UI设计、人物、风景、产品、插画、其他\n" +
+        "2. 根据类型输出一段可直接用于 AI 生图的完整提示词（中文），覆盖该类型的关键要素：\n" +
+        "   - UI设计：整体风格、材质、主色调与辅助色、组件大小比例、间距节奏、圆角与阴影、字体层级、图标风格、布局结构\n" +
+        "   - 人物：面部细节、发型、服饰、姿态、光线方向、背景氛围、镜头景深\n" +
+        "   - 风景：时间与光线、天气、构图、色彩基调、环境细节、镜头焦段\n" +
+        "   - 产品：材质与表面处理、机位角度、布光方案、背景与道具、质感细节\n" +
+        "   - 插画与其他：风格定义、线条配色、构图、氛围\n" +
+        "3. 输出格式：第一行输出\"类型：XXX\"，第二行起输出提示词本体。提示词要细腻、具体、可复现，禁止输出任何解释性废话。"
+
+    /** 图片反推提示词（多模态模型）。 */
+    suspend fun reversePrompt(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        imageDataUri: String,
+    ): Result<ReverseResult> = withContext(Dispatchers.IO) {
+        try {
+            val content = JSONArray()
+                .put(JSONObject().put("type", "text").put("text", "请根据这张图片反推生成提示词。"))
+                .put(
+                    JSONObject()
+                        .put("type", "image_url")
+                        .put("image_url", JSONObject().put("url", imageDataUri)),
+                )
+            val body = JSONObject()
+                .put("model", model)
+                .put("messages", JSONArray()
+                    .put(JSONObject().put("role", "system").put("content", SYS_REVERSE))
+                    .put(JSONObject().put("role", "user").put("content", content)))
+            val text = parseChatText(chatRequest(baseUrl, apiKey, body))
+            if (text.isBlank()) error("返回为空")
+            val trimmed = text.trim()
+            var category = "其他"
+            var promptBody = trimmed
+            val first = trimmed.lines().firstOrNull().orEmpty()
+            if (first.contains("类型")) {
+                category = first.substringAfter("类型")
+                    .trim().removePrefix("：").removePrefix(":").trim().ifEmpty { "其他" }
+                promptBody = trimmed.lines().drop(1).joinToString("\n").trim()
+            }
+            Result.success(ReverseResult(category, promptBody.ifEmpty { trimmed }))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ============ 各策略实现 ============
 
     private fun postGenerations(req: GenRequest, withImage: Boolean, minimal: Boolean): List<ByteArray> {
