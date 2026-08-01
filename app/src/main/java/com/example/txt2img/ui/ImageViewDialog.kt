@@ -1727,4 +1727,153 @@ fun ReorderDialog(
     }
 }
 
+/**
+ * 上游请求失败详情面板：报错全文 + AI 解析原因。
+ */
+@Composable
+fun ErrorDetailDialog(
+    errorText: String,
+    explainResult: String?,
+    explaining: Boolean,
+    onExplain: () -> Unit,
+    onCopyError: () -> Unit,
+    onCopyExplain: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp)
+                .glassCard(RoundedCornerShape(16.dp))
+                .padding(14.dp),
+        ) {
+            Text(
+                "上游请求失败",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkTitle,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "以下为上游接口返回的具体报错",
+                fontSize = 8.sp,
+                color = Palette.InkLight,
+            )
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 220.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFBEDED))
+                    .padding(10.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    errorText,
+                    fontSize = 10.sp,
+                    color = ErrorRed,
+                    lineHeight = 15.sp,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.Purple)
+                    .clickable(enabled = !explaining, onClick = onExplain),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (explaining) "AI 解析中…" else "AI 解析原因",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                )
+            }
+            if (explainResult != null) {
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "AI 分析结果",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Palette.Purple,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Palette.InputBg)
+                            .clickable(onClick = onCopyExplain)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            "复制分析",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Palette.InkStrong,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .padding(10.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        explainResult,
+                        fontSize = 10.sp,
+                        color = Palette.InkStrong,
+                        lineHeight = 15.sp,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = onCopyError),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "复制报错",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "关闭",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
 private val ErrorRed = Color(0xFFC2473F)

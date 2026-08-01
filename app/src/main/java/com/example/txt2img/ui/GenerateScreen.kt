@@ -178,6 +178,7 @@ fun GenerateScreen() {
     var optimizeDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
     var reversing by remember { mutableStateOf(false) }
     var reverseDialog by remember { mutableStateOf<ImageClient.ReverseResult?>(null) }
+    var failCount by remember { mutableIntStateOf(0) }
 
     val providersJson by prefs.providersJson.collectAsState(initial = "[]")
     val currentJson by prefs.currentJson.collectAsState(initial = "{}")
@@ -202,6 +203,7 @@ fun GenerateScreen() {
     val reverseApiKey = reverseProvider?.key.orEmpty()
     val reverseModel = reverseSel.model
     val reverseEnabled by prefs.reverseEnabled.collectAsState(initial = false)
+    val failLimit by prefs.failLimit.collectAsState(initial = 3)
     // 视觉能力绑定反推模型（与生图/Agent 模型完全独立）
     val reverseVisionOk = remember(visionJson, reverseSel.providerId, reverseSel.model) {
         if (reverseSel.providerId.isEmpty() || reverseSel.model.isEmpty()) {
@@ -373,6 +375,11 @@ fun GenerateScreen() {
                             genState = GenState.Failed("请先在「我的」中配置供应商并选择模型")
                             return@GeneratePage
                         }
+                        // 已达连续失败上限：重置并重新尝试
+                        if (failCount >= failLimit) {
+                            failCount = 0
+                            Toast.makeText(context, "已重置连续失败计数，重新尝试生成", Toast.LENGTH_SHORT).show()
+                        }
                         val styleOnly = STYLE_OPTIONS[styleIndex].second.removePrefix("，")
                             .ifEmpty { SAMPLE_PROMPTS.first() }
                         val userPrompt = prompt.trim().ifEmpty { styleOnly }
@@ -402,6 +409,7 @@ fun GenerateScreen() {
                                     ),
                                 ).onSuccess { outcome ->
                                     val elapsed = System.currentTimeMillis() - t0
+                                    failCount = 0
                                     val saved = mutableListOf<String>()
                                     val now = System.currentTimeMillis()
                                     val refName = refs.firstOrNull()?.let { store.saveRef(it.bytes, it.mime) }
@@ -427,7 +435,14 @@ fun GenerateScreen() {
                                     }
                                 }.onFailure { e ->
                                     KeepAliveService.stop(context)
-                                    genState = GenState.Failed(e.message ?: "生成失败")
+                                    val msg = e.message ?: "生成失败"
+                                    failCount++
+                                    scope.launch { prefs.saveLastError(msg) }
+                                    genState = if (failCount >= failLimit) {
+                                        GenState.Failed("连续失败 $failCount 次，已停止生成。请前往「我的」查看失败详情")
+                                    } else {
+                                        GenState.Failed("生成失败（第 $failCount/$failLimit 次）：${msg.take(120)}")
+                                    }
                                 }
                             }
                         }

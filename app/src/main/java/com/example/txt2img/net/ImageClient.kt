@@ -252,6 +252,28 @@ object ImageClient {
         }
     }
 
+    /** AI 解析上游报错：分析原因与解决办法。 */
+    suspend fun explainError(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        errorText: String,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val sys = "你是 API 报错排查专家。用户会粘贴一段调用 AI 生图或对话接口时上游返回的错误信息，请分析：1) 可能的原因；2) 对应的解决办法；3) 需要检查的配置项（接口地址/API Key/模型名/参数等）。" +
+                "用中文简洁分点输出，只基于错误信息本身分析，不要臆测超出错误信息的内容。"
+            val body = JSONObject()
+                .put("model", model)
+                .put("messages", JSONArray()
+                    .put(JSONObject().put("role", "system").put("content", sys))
+                    .put(JSONObject().put("role", "user").put("content", errorText)))
+            val text = parseChatText(chatRequest(baseUrl, apiKey, body))
+            if (text.isBlank()) error("解析返回为空") else Result.success(text.trim())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ============ 各策略实现 ============
 
     private fun postGenerations(req: GenRequest, withImage: Boolean, minimal: Boolean): List<ByteArray> {

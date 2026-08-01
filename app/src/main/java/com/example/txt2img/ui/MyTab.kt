@@ -1,5 +1,7 @@
 package com.example.txt2img.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -24,6 +26,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -33,6 +36,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -83,6 +87,25 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
     var showKeyId by remember { mutableStateOf<String?>(null) }
     var showAbout by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<String?>(null) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var showExplainPicker by remember { mutableStateOf(false) }
+    var explaining by remember { mutableStateOf(false) }
+    var explainResult by remember { mutableStateOf<String?>(null) }
+    var explainFail by remember { mutableStateOf<String?>(null) }
+
+    val lastError by prefs.lastError.collectAsState(initial = "")
+    val currentErrorMsg = remember(lastError) {
+        try {
+            org.json.JSONObject(lastError).optString("msg", lastError)
+        } catch (e: Exception) {
+            lastError
+        }
+    }
+    val failLimit by prefs.failLimit.collectAsState(initial = 3)
+    var failLimitText by remember { mutableStateOf("") }
+    LaunchedEffect(failLimit) {
+        if (failLimitText.isEmpty()) failLimitText = failLimit.toString()
+    }
 
     fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 
@@ -274,6 +297,120 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(8.dp))
 
+        // 生成容错设置（连续失败停止次数）
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .glassCard(RoundedCornerShape(12.dp))
+                .padding(12.dp),
+        ) {
+            Text(
+                "生成容错",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkStrong,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "请求上游连续失败达到设定次数后自动停止生成，防止无效消耗",
+                fontSize = 8.sp,
+                color = Palette.InkLight,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "连续失败停止次数",
+                    fontSize = 10.sp,
+                    color = Palette.InkStrong,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    Modifier
+                        .width(52.dp)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    BasicTextField(
+                        value = failLimitText,
+                        onValueChange = { input ->
+                            if (input.length <= 2 && input.all { it.isDigit() }) {
+                                failLimitText = input
+                                input.toIntOrNull()?.let { v ->
+                                    scope.launch { prefs.saveFailLimit(v) }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        textStyle = TextStyle(fontSize = 12.sp, color = Palette.InkStrong),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        ),
+                        cursorBrush = SolidColor(Palette.Purple),
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "次",
+                    fontSize = 10.sp,
+                    color = Palette.InkMid,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // 最近一次请求失败信息（点击查看详情，关闭后清除）
+        if (lastError.isNotEmpty()) {
+            val errTime = try {
+                org.json.JSONObject(lastError).optLong("time", 0L)
+            } catch (e: Exception) {
+                0L
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .glassCard(RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp)
+                    .clickable { showErrorDialog = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.Error,
+                    contentDescription = null,
+                    tint = ErrorRed,
+                    modifier = Modifier.size(12.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "最近一次请求失败",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ErrorRed,
+                    )
+                    if (errTime > 0L) {
+                        Text(
+                            java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+                                .format(java.util.Date(errTime)),
+                            fontSize = 8.sp,
+                            color = Palette.InkLight,
+                        )
+                    }
+                }
+                Text(
+                    "查看详情 ＞",
+                    fontSize = 9.sp,
+                    color = ErrorRed,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
         // 关于
         Row(
             Modifier
@@ -309,6 +446,72 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
 
     if (showAbout) {
         AboutDialog(onDismiss = { showAbout = false })
+    }
+
+    // 失败详情面板（关闭即清除）
+    if (showErrorDialog) {
+        ErrorDetailDialog(
+            errorText = currentErrorMsg,
+            explainResult = explainResult,
+            explaining = explaining,
+            onExplain = {
+                if (providers.isEmpty()) {
+                    toast("请先添加供应商")
+                } else {
+                    showExplainPicker = true
+                }
+            },
+            onCopyError = {
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("error", currentErrorMsg))
+                toast("报错已复制")
+            },
+            onCopyExplain = {
+                explainResult?.let { r ->
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("explain", r))
+                    toast("分析结果已复制")
+                }
+            },
+            onDismiss = {
+                scope.launch { prefs.clearLastError() }
+                showErrorDialog = false
+                explainResult = null
+                explainFail = null
+            },
+        )
+    }
+
+    // AI 解析报错：选择模型
+    if (showExplainPicker) {
+        ModelPickerDialog(
+            providers = providers,
+            current = current,
+            title = "选择解析模型",
+            subtitle = "用选中的模型分析报错原因与解决办法",
+            onPick = { pid, m ->
+                showExplainPicker = false
+                val p = providers.find { it.id == pid }
+                if (p != null) {
+                    explaining = true
+                    explainResult = null
+                    scope.launch {
+                        ImageClient.explainError(p.url, p.key, m, currentErrorMsg)
+                            .onSuccess { r ->
+                                explaining = false
+                                explainResult = r
+                            }
+                            .onFailure { e ->
+                                explaining = false
+                                explainFail = e.message?.take(120)
+                                toast("解析失败：${e.message?.take(80)}")
+                            }
+                    }
+                }
+            },
+            onGoConfig = { showExplainPicker = false },
+            onDismiss = { showExplainPicker = false },
+        )
     }
 
     deleteTarget?.let { id ->

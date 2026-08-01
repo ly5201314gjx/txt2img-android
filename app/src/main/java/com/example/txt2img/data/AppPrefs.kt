@@ -128,6 +128,8 @@ class AppPrefs(private val context: Context) {
         val REVERSE = booleanPreferencesKey("reverse_enabled")
         val REVERSE_MODEL = stringPreferencesKey("reverse_json")
         val ALL_POS = intPreferencesKey("all_pos")
+        val FAIL_LIMIT = intPreferencesKey("fail_limit")
+        val LAST_ERROR = stringPreferencesKey("last_error")
     }
 
     val providersJson: Flow<String> = context.dataStore.data.map { it[Keys.PROVIDERS] ?: "[]" }
@@ -139,6 +141,8 @@ class AppPrefs(private val context: Context) {
     val reverseModelJson: Flow<String> = context.dataStore.data.map { it[Keys.REVERSE_MODEL] ?: "{}" }
     val reverseEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.REVERSE] ?: false }
     val allPos: Flow<Int> = context.dataStore.data.map { it[Keys.ALL_POS] ?: 0 }
+    val failLimit: Flow<Int> = context.dataStore.data.map { (it[Keys.FAIL_LIMIT] ?: 3).coerceIn(1, 10) }
+    val lastError: Flow<String> = context.dataStore.data.map { it[Keys.LAST_ERROR] ?: "" }
     val askedBattery: Flow<Boolean> = context.dataStore.data.map { it[Keys.ASKED_BATTERY] ?: false }
 
     suspend fun markAskedBattery() {
@@ -147,6 +151,24 @@ class AppPrefs(private val context: Context) {
 
     suspend fun saveAllPos(v: Int) {
         context.dataStore.edit { p -> p[Keys.ALL_POS] = v }
+    }
+
+    suspend fun saveFailLimit(v: Int) {
+        context.dataStore.edit { p -> p[Keys.FAIL_LIMIT] = v.coerceIn(1, 10) }
+    }
+
+    /** 保存最近一次上游请求失败信息（JSON：time + msg）。 */
+    suspend fun saveLastError(msg: String) {
+        context.dataStore.edit { p ->
+            p[Keys.LAST_ERROR] = JSONObject()
+                .put("time", System.currentTimeMillis())
+                .put("msg", msg)
+                .toString()
+        }
+    }
+
+    suspend fun clearLastError() {
+        context.dataStore.edit { p -> p[Keys.LAST_ERROR] = "" }
     }
 
     suspend fun saveReverseEnabled(v: Boolean) {
