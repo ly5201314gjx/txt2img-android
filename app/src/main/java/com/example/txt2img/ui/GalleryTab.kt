@@ -100,6 +100,7 @@ fun GalleryTab(
     catsJson: String,
     store: ImageStore,
     prefs: AppPrefs,
+    onEdit: (String, File) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -308,6 +309,10 @@ fun GalleryTab(
             time = v.time,
             refFile = ref,
             onDismiss = { viewer = null },
+            onEdit = {
+                viewer = null
+                onEdit(v.prompt, store.fileFor(v.file))
+            },
             onCopyPrompt = { p ->
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText("prompt", p))
