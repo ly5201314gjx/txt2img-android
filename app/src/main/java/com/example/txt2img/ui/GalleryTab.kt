@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -28,16 +29,19 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,14 +120,24 @@ fun GalleryTab(
 
     var filter by remember { mutableStateOf<String?>(null) } // null = 全部
     var viewer by remember { mutableStateOf<ImageEntry?>(null) }
+    var fullView by remember { mutableStateOf<String?>(null) } // 全屏查看的文件名
     var menuTarget by remember { mutableStateOf<ImageEntry?>(null) }
     var pendingMove by remember { mutableStateOf<ImageEntry?>(null) }
     var pendingDelete by remember { mutableStateOf<ImageEntry?>(null) }
     var showPrompt by remember { mutableStateOf<String?>(null) }
+    var multiMode by remember { mutableStateOf(false) }
+    var selectedSet by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var multiMove by remember { mutableStateOf(false) }
+    var multiDelete by remember { mutableStateOf(false) }
+    var catMenu by remember { mutableStateOf<String?>(null) } // null 未打开；"" = 全部
+    var showReorder by remember { mutableStateOf(false) }
+    var renameTarget by remember { mutableStateOf<String?>(null) }
     var showNewCat by remember { mutableStateOf(false) }
     var deleteCat by remember { mutableStateOf<String?>(null) }
     var permissionRequested by remember { mutableStateOf(false) }
     var pendingSave by remember { mutableStateOf<Pair<File, String>?>(null) }
+
+    val allPos by prefs.allPos.collectAsState(initial = 0)
 
     val toast: (String) -> Unit = { msg ->
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -159,136 +173,187 @@ fun GalleryTab(
 
     val shown = if (filter == null) entries else entries.filter { it.cat == filter }
 
-    Column(
+    // 分类展示顺序（"全部"参与排序，位置持久化）
+    val chipOrder = remember(cats, allPos) {
+        cats.take(allPos.coerceIn(0, cats.size)) + listOf("全部") + cats.drop(allPos.coerceIn(0, cats.size))
+    }
+
+    fun exitMulti() {
+        multiMode = false
+        selectedSet = emptySet()
+    }
+
+    Box(
         modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(bottom = 76.dp),
+            .padding(bottom = if (multiMode) 150.dp else 76.dp),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .padding(start = 2.dp, end = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(
-                    "作品",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Palette.InkTitle,
-                    letterSpacing = 0.2.sp,
-                )
-                Text(
-                    "点击查看详情 · 长按归类 / 删除",
-                    fontSize = 9.sp,
-                    color = Palette.InkLight,
-                )
-            }
-        }
-
-        // 分类筛选条
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            FilterChip("全部", filter == null, onClick = { filter = null })
-            cats.forEach { c ->
-                FilterChip(
-                    text = c,
-                    selected = filter == c,
-                    onClick = { filter = c },
-                    onLongClick = { deleteCat = c },
-                )
-            }
-            Box(
+        Column(Modifier.fillMaxSize()) {
+            Row(
                 Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.7f))
-                    .clickable { showNewCat = true }
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .padding(start = 2.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "＋ 新建",
-                    fontSize = 9.sp,
-                    color = Palette.InkMid,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Column {
+                    Text(
+                        "作品",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Palette.InkTitle,
+                        letterSpacing = 0.2.sp,
+                    )
+                    Text(
+                        if (multiMode) "已选 ${selectedSet.size} 张 · 可批量归类 / 删除" else "点击查看 · 长按多选 / 归类 / 删除",
+                        fontSize = 9.sp,
+                        color = Palette.InkLight,
+                    )
+                }
             }
-        }
-        Spacer(Modifier.height(6.dp))
 
-        if (shown.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+            // 分类筛选条（支持长按操作：移动位置 / 重命名 / 删除）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Icon(
-                    Icons.Filled.PhotoLibrary,
-                    contentDescription = null,
-                    tint = Palette.InkLight,
-                    modifier = Modifier.size(28.dp),
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    if (filter == null) "暂无作品" else "该分类暂无作品",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Palette.InkStrong,
-                )
-                Text(
-                    if (filter == null) "生成的图片会自动保存在这里" else "可以长按其他作品移动到该分类",
-                    fontSize = 10.sp,
-                    color = Palette.InkLight,
-                )
+                chipOrder.forEach { name ->
+                    val isAll = name == "全部"
+                    FilterChip(
+                        text = name,
+                        selected = if (isAll) filter == null else filter == name,
+                        onClick = {
+                            if (isAll) filter = null else filter = name
+                        },
+                        onLongClick = { catMenu = if (isAll) "" else name },
+                    )
+                }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White.copy(alpha = 0.7f))
+                        .clickable { showNewCat = true }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        "＋ 新建",
+                        fontSize = 9.sp,
+                        color = Palette.InkMid,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(shown, key = { it.file }) { e ->
-                    val file = store.fileFor(e.file)
-                    if (file.exists()) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .combinedClickable(
-                                    onClick = { viewer = e },
-                                    onLongClick = { menuTarget = e },
-                                ),
-                        ) {
-                            AsyncImage(
-                                model = file,
-                                contentDescription = e.prompt,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                            if (e.type == "reverse") {
-                                Box(
-                                    Modifier
-                                        .align(Alignment.TopStart)
-                                        .padding(6.dp)
-                                        .clip(RoundedCornerShape(99.dp))
-                                        .background(Palette.Purple.copy(alpha = 0.9f))
-                                        .padding(horizontal = 7.dp, vertical = 2.dp),
-                                ) {
-                                    Text(
-                                        "反推",
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color.White,
-                                    )
+            Spacer(Modifier.height(6.dp))
+
+            if (shown.isEmpty()) {
+                Column(
+                    Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.PhotoLibrary,
+                        contentDescription = null,
+                        tint = Palette.InkLight,
+                        modifier = Modifier.size(28.dp),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        if (filter == null) "暂无作品" else "该分类暂无作品",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Palette.InkStrong,
+                    )
+                    Text(
+                        if (filter == null) "生成的图片会自动保存在这里" else "可以长按其他作品移动到该分类",
+                        fontSize = 10.sp,
+                        color = Palette.InkLight,
+                    )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(shown, key = { it.file }) { e ->
+                        val file = store.fileFor(e.file)
+                        if (file.exists()) {
+                            val sel = e.file in selectedSet
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (sel) Palette.CreditBg else Color.Transparent)
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (multiMode) {
+                                                selectedSet = if (sel) selectedSet - e.file else selectedSet + e.file
+                                            } else {
+                                                viewer = e
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!multiMode) menuTarget = e
+                                        },
+                                    ),
+                            ) {
+                                AsyncImage(
+                                    model = file,
+                                    contentDescription = e.prompt,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                if (e.type == "reverse") {
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(6.dp)
+                                            .clip(RoundedCornerShape(99.dp))
+                                            .background(Palette.Purple.copy(alpha = 0.9f))
+                                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            "反推",
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color.White,
+                                        )
+                                    }
+                                }
+                                if (multiMode) {
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(6.dp)
+                                            .size(18.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(
+                                                if (sel) Palette.Purple else Color.White.copy(alpha = 0.85f),
+                                            )
+                                            .border(
+                                                width = if (sel) 0.dp else 1.dp,
+                                                color = Palette.InkLight,
+                                                shape = RoundedCornerShape(4.dp),
+                                            ),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (sel) {
+                                            Icon(
+                                                Icons.Filled.Check,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(11.dp),
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -296,25 +361,97 @@ fun GalleryTab(
                 }
             }
         }
+
+        // 多选操作栏
+        if (multiMode) {
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 10.dp)
+                    .padding(bottom = 88.dp)
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .glassCard(RoundedCornerShape(14.dp))
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "已选 ${selectedSet.size} 张",
+                    fontSize = 9.sp,
+                    color = Palette.InkMid,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(enabled = selectedSet.isNotEmpty()) { multiMove = true }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        "移动分类",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (selectedSet.isNotEmpty()) Palette.InkStrong else Palette.InkLight,
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFFBEDED))
+                        .clickable(enabled = selectedSet.isNotEmpty()) { multiDelete = true }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        "删除",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (selectedSet.isNotEmpty()) ErrorRed else Palette.InkLight,
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = ::exitMulti)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        "取消",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+            }
+        }
     }
 
-    // 长按菜单
+    // 长按菜单（多选 / 归类 / 删除）
     menuTarget?.let { e ->
         ActionMenuDialog(
             title = "长按操作",
-            options = listOf("移动到分类", "删除"),
+            options = listOf("多选", "移动到分类", "删除"),
             onPick = { i ->
                 menuTarget = null
                 when (i) {
-                    0 -> pendingMove = e
-                    1 -> pendingDelete = e
+                    0 -> {
+                        multiMode = true
+                        selectedSet = setOf(e.file)
+                    }
+                    1 -> pendingMove = e
+                    2 -> pendingDelete = e
                 }
             },
             onDismiss = { menuTarget = null },
         )
     }
 
-    // 移动到分类
+    // 单张移动到分类
     pendingMove?.let { e ->
         CategoryPickerDialog(
             categories = cats,
@@ -325,6 +462,44 @@ fun GalleryTab(
                 toast(if (c.isEmpty()) "已移出分类" else "已归类到「$c」")
             },
             onDismiss = { pendingMove = null },
+        )
+    }
+
+    // 批量移动到分类
+    if (multiMove) {
+        CategoryPickerDialog(
+            categories = cats,
+            current = "",
+            onPick = { c ->
+                val targets = selectedSet
+                scope.launch {
+                    targets.forEach { prefs.setImageCategory(it, c) }
+                }
+                exitMulti()
+                toast(if (c.isEmpty()) "已移出分类" else "已归类到「$c」")
+            },
+            onDismiss = { multiMove = false },
+        )
+    }
+
+    // 批量删除确认
+    if (multiDelete) {
+        ConfirmDialog(
+            title = "删除选中的 ${selectedSet.size} 张作品？",
+            message = "将同时删除对应的参考图，且不可恢复。",
+            confirmText = "删除",
+            onConfirm = {
+                val targets = selectedSet
+                scope.launch {
+                    targets.forEach { name ->
+                        prefs.removeImage(name)
+                        store.delete(name)
+                    }
+                }
+                exitMulti()
+                toast("已删除 ${targets.size} 张")
+            },
+            onDismiss = { multiDelete = false },
         )
     }
 
@@ -345,6 +520,9 @@ fun GalleryTab(
             },
             onShowPrompt = { p ->
                 showPrompt = p
+            },
+            onViewImage = {
+                fullView = v.file
             },
             onCopyPrompt = { p ->
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -378,6 +556,74 @@ fun GalleryTab(
                 toast("提示词已复制")
             },
             onDismiss = { showPrompt = null },
+        )
+    }
+
+    // 全屏图片查看
+    fullView?.let { name ->
+        FullscreenImageViewer(
+            file = store.fileFor(name),
+            onDismiss = { fullView = null },
+        )
+    }
+
+    // 分类长按操作菜单（移动位置 / 重命名 / 删除）
+    catMenu?.let { target ->
+        val isAll = target.isEmpty()
+        ActionMenuDialog(
+            title = if (isAll) "分类「全部」" else "分类「$target」",
+            options = if (isAll) listOf("移动位置") else listOf("移动位置", "重命名", "删除"),
+            onPick = { i ->
+                catMenu = null
+                when {
+                    i == 0 -> showReorder = true
+                    !isAll && i == 1 -> renameTarget = target
+                    !isAll && i == 2 -> deleteCat = target
+                }
+            },
+            onDismiss = { catMenu = null },
+        )
+    }
+
+    // 分类排序（含"全部"）
+    if (showReorder) {
+        ReorderDialog(
+            title = "调整分类顺序",
+            items = chipOrder,
+            onConfirm = { newOrder ->
+                val newAllPos = newOrder.indexOf("全部").coerceAtLeast(0)
+                val newCats = newOrder.filter { it != "全部" }
+                scope.launch {
+                    prefs.saveCats(newCats)
+                    prefs.saveAllPos(newAllPos)
+                }
+                showReorder = false
+                toast("顺序已保存")
+            },
+            onDismiss = { showReorder = false },
+        )
+    }
+
+    // 分类重命名
+    renameTarget?.let { old ->
+        TextInputDialog(
+            title = "重命名分类",
+            placeholder = "输入新名称（≤16 字）",
+            initial = old,
+            onConfirm = { name ->
+                if (name.isEmpty() || name == old || name in cats) {
+                    toast("名称无效或已存在")
+                } else {
+                    scope.launch {
+                        prefs.saveCats(cats.map { if (it == old) name else it })
+                        entries.filter { it.cat == old }.forEach { prefs.setImageCategory(it.file, name) }
+                    }
+                    if (filter == old) filter = name
+                    toast("已重命名为「$name」")
+                }
+                renameTarget = null
+            },
+            onDismiss = { renameTarget = null },
         )
     }
 
@@ -467,3 +713,5 @@ private fun FilterChip(
         )
     }
 }
+
+private val ErrorRed = Color(0xFFC2473F)

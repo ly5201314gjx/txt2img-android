@@ -3,6 +3,7 @@ package com.example.txt2img.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -126,6 +127,7 @@ class AppPrefs(private val context: Context) {
         val VISION = stringPreferencesKey("vision_json")
         val REVERSE = booleanPreferencesKey("reverse_enabled")
         val REVERSE_MODEL = stringPreferencesKey("reverse_json")
+        val ALL_POS = intPreferencesKey("all_pos")
     }
 
     val providersJson: Flow<String> = context.dataStore.data.map { it[Keys.PROVIDERS] ?: "[]" }
@@ -136,10 +138,15 @@ class AppPrefs(private val context: Context) {
     val visionJson: Flow<String> = context.dataStore.data.map { it[Keys.VISION] ?: "{}" }
     val reverseModelJson: Flow<String> = context.dataStore.data.map { it[Keys.REVERSE_MODEL] ?: "{}" }
     val reverseEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.REVERSE] ?: false }
+    val allPos: Flow<Int> = context.dataStore.data.map { it[Keys.ALL_POS] ?: 0 }
     val askedBattery: Flow<Boolean> = context.dataStore.data.map { it[Keys.ASKED_BATTERY] ?: false }
 
     suspend fun markAskedBattery() {
         context.dataStore.edit { p -> p[Keys.ASKED_BATTERY] = true }
+    }
+
+    suspend fun saveAllPos(v: Int) {
+        context.dataStore.edit { p -> p[Keys.ALL_POS] = v }
     }
 
     suspend fun saveReverseEnabled(v: Boolean) {
