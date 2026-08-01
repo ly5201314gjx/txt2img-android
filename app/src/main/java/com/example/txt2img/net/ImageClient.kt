@@ -27,15 +27,15 @@ data class GenRequest(
     val size: String = "1024x1024",
     val qualityParam: String? = null,
     val steps: Int? = null,
-    val refImage: RefImage? = null,
+    val refImages: List<RefImage> = emptyList(),
 )
 
 data class GenOutcome(val images: List<ByteArray>, val mode: String)
 
 /**
- * 兼容第三方 gpt-image 转发的生图协议：
- *  - /images/generations（JSON：model/prompt/n/size/quality；兼容 SiliconFlow 的 image_size/batch_size/image 内联）
- *  - /images/edits（gpt-image 新版 JSON images:[{image_url}]，及旧版 multipart）
+ * 兼容第三方 gpt-image 转发生图协议（支持多参考图联动，上限 3 张）：
+ *  - /images/generations（JSON：model/prompt/n/size/quality；兼容 SiliconFlow image/image2/image3 内联 base64）
+ *  - /images/edits（gpt-image 新版 JSON images:[{image_url}]，及旧版 multipart image[]）
  *  - /chat/completions（OpenRouter 等 Chat 型返回 image_url）
  * 自动尝试降级链，任何一步成功即返回，全部失败时汇总各步原因。
  */
@@ -85,8 +85,9 @@ object ImageClient {
     suspend fun generate(req: GenRequest): Result<GenOutcome> = withContext(Dispatchers.IO) {
         try {
             val errors = mutableListOf<String>()
+            val withRefs = req.refImages.isNotEmpty()
             val attempts = buildList<Pair<String, () -> List<ByteArray>>> {
-                if (req.refImage != null) {
+                if (withRefs) {
                     // gpt-image 转第三方：参考图优先走 /images/edits（JSON images[]）
                     add("edits-json" to { postEditsJson(req) })
                     add("generations+image" to { postGenerations(req, withImage = true, minimal = false) })
@@ -94,7 +95,7 @@ object ImageClient {
                 } else {
                     add("generations" to { postGenerations(req, withImage = false, minimal = false) })
                 }
-                add("generations-min" to { postGenerations(req, withImage = req.refImage != null, minimal = true) })
+                add("generations-min" to { postGenerations(req, withImage = withRefs, minimal = true) })
                 add("chat" to { postChat(req) })
             }
             for ((mode, fn) in attempts) {
@@ -128,13 +129,19 @@ object ImageClient {
         }
         body.put("size", req.size)
         body.put("image_size", req.size)
-        if (withImage) req.refImage?.let { body.put("image", it.dataUri()) }
+        if (withImage) {
+            // SiliconFlow 多参考图：image / image2 / image3
+            req.refImages.getOrNull(0)?.let { body.put("image", it.dataUri()) }
+            req.refImages.getOrNull(1)?.let { body.put("image2", it.dataUri()) }
+            req.refImages.getOrNull(2)?.let { body.put("image3", it.dataUri()) }
+        }
         return parseImages(execJson(req, "/images/generations", body), req.count)
     }
 
     private fun postEditsJson(req: GenRequest): List<ByteArray> {
-        val ref = req.refImage ?: error("缺少参考图")
-        val imagesArr = JSONArray().put(JSONObject().put("image_url", ref.dataUri()))
+        if (req.refImages.isEmpty()) error("缺少参考图")
+        val imagesArr = JSONArray()
+        req.refImages.forEach { imagesArr.put(JSONObject().put("image_url", it.dataUri())) }
         val body = JSONObject()
             .put("model", req.model)
             .put("prompt", req.prompt)
@@ -146,24 +153,29 @@ object ImageClient {
     }
 
     private fun postEditsMultipart(req: GenRequest): List<ByteArray> {
-        val ref = req.refImage ?: error("缺少参考图")
-        val ext = when {
-            ref.mime.contains("png") -> "png"
-            ref.mime.contains("webp") -> "webp"
-            else -> "jpg"
-        }
+        if (req.refImages.isEmpty()) error("缺少参考图")
         val mp = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("image", "ref.$ext", ref.bytes.toRequestBody(ref.mime.toMediaTypeOrNull()))
             .addFormDataPart("prompt", req.prompt)
             .addFormDataPart("model", req.model)
             .addFormDataPart("n", req.count.toString())
             .addFormDataPart("size", req.size)
-            .build()
+        req.refImages.forEachIndexed { i, ref ->
+            val ext = when {
+                ref.mime.contains("png") -> "png"
+                ref.mime.contains("webp") -> "webp"
+                else -> "jpg"
+            }
+            mp.addFormDataPart(
+                "image[]",
+                "ref${i + 1}.$ext",
+                ref.bytes.toRequestBody(ref.mime.toMediaTypeOrNull()),
+            )
+        }
         val r = Request.Builder()
             .url(base(req.baseUrl) + "/images/edits")
             .header("Authorization", "Bearer ${req.apiKey}")
-            .post(mp)
+            .post(mp.build())
             .build()
         val resp = client.newCall(r).execute().use { it ->
             if (!it.isSuccessful) throw HttpException(it.code, it.body?.string().orEmpty())
@@ -173,16 +185,14 @@ object ImageClient {
     }
 
     private fun postChat(req: GenRequest): List<ByteArray> {
-        val content: Any = if (req.refImage != null) {
-            JSONArray()
-                .put(JSONObject().put("type", "text").put("text", req.prompt))
-                .put(
-                    JSONObject()
-                        .put("type", "image_url")
-                        .put("image_url", JSONObject().put("url", req.refImage.dataUri())),
-                )
-        } else {
-            req.prompt
+        val content = JSONArray()
+        content.put(JSONObject().put("type", "text").put("text", req.prompt))
+        req.refImages.forEach {
+            content.put(
+                JSONObject()
+                    .put("type", "image_url")
+                    .put("image_url", JSONObject().put("url", it.dataUri())),
+            )
         }
         val body = JSONObject()
             .put("model", req.model)

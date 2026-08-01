@@ -68,6 +68,8 @@ private data class ImageEntry(
     val file: String,
     val refFile: String?,
     val cat: String,
+    val durationMs: Long,
+    val ratio: String,
 )
 
 private fun parseEntries(json: String): List<ImageEntry> = try {
@@ -82,6 +84,8 @@ private fun parseEntries(json: String): List<ImageEntry> = try {
                 file = o.optString("file", ""),
                 refFile = o.optString("ref", "").ifEmpty { null },
                 cat = o.optString("cat", ""),
+                durationMs = o.optLong("dur", 0L),
+                ratio = o.optString("ratio", ""),
             ),
         )
     }
@@ -307,6 +311,8 @@ fun GalleryTab(
             file = store.fileFor(v.file),
             prompt = v.prompt,
             time = v.time,
+            durationMs = v.durationMs,
+            ratio = v.ratio,
             refFile = ref,
             onDismiss = { viewer = null },
             onEdit = {

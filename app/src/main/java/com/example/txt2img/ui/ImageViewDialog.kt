@@ -315,6 +315,8 @@ fun ImageDetailDialog(
     file: File,
     prompt: String,
     time: Long,
+    durationMs: Long = 0L,
+    ratio: String = "",
     refFile: File?,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
@@ -382,6 +384,17 @@ fun ImageDetailDialog(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(time)),
+                    fontSize = 8.sp,
+                    color = Palette.InkLight,
+                )
+            }
+            if (durationMs > 0L || ratio.isNotEmpty()) {
+                Spacer(Modifier.height(3.dp))
+                val dur = if (durationMs > 0L) "耗时 ${String.format(Locale.getDefault(), "%.1f", durationMs / 1000.0)}s" else ""
+                val parts = listOf(dur, if (ratio.isNotEmpty()) "比例 $ratio" else "")
+                    .filter { it.isNotEmpty() }
+                Text(
+                    parts.joinToString(" · "),
                     fontSize = 8.sp,
                     color = Palette.InkLight,
                 )
