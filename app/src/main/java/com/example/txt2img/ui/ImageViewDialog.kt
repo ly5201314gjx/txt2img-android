@@ -23,6 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -321,6 +326,7 @@ fun ImageDetailDialog(
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
     onShowPrompt: (String) -> Unit,
+    onViewImage: () -> Unit,
     onCopyPrompt: (String) -> Unit,
     onSaveImage: () -> Unit,
     onSaveRef: () -> Unit,
@@ -338,9 +344,17 @@ fun ImageDetailDialog(
                 contentDescription = prompt,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp)),
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onViewImage),
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "点击图片可全屏查看",
+                fontSize = 7.sp,
+                color = Palette.InkLight,
+                modifier = Modifier.align(Alignment.End),
+            )
+            Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     prompt,
@@ -797,10 +811,10 @@ fun TextInputDialog(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(36.dp)
+                    .height(38.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Palette.InputBg)
-                    .padding(horizontal = 10.dp),
+                    .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 if (text.isEmpty()) {
@@ -808,13 +822,15 @@ fun TextInputDialog(
                         placeholder,
                         fontSize = 11.sp,
                         color = Palette.InkLight,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 BasicTextField(
                     value = text,
                     onValueChange = { if (it.length <= 16) text = it },
                     modifier = Modifier.fillMaxSize(),
-                    textStyle = TextStyle(fontSize = 11.sp, color = Palette.InkStrong),
+                    textStyle = TextStyle(fontSize = 12.sp, color = Palette.InkStrong),
                     singleLine = true,
                     cursorBrush = SolidColor(Palette.Purple),
                 )
@@ -1526,6 +1542,171 @@ fun PromptEditorDialog(
                         .clip(RoundedCornerShape(8.dp))
                         .background(Palette.ButtonBlue)
                         .clickable { onConfirm(text) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "确定",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 全屏图片查看器（点击任意位置或右上角关闭）。
+ */
+@Composable
+fun FullscreenImageViewer(file: File, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color(0xF20B0B10))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = file,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.18f))
+                    .clickable(onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "关闭",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Text(
+                "点击任意位置关闭",
+                fontSize = 9.sp,
+                color = Color.White.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp),
+            )
+        }
+    }
+}
+
+/**
+ * 分类排序弹窗（上下移调整顺序，"全部"参与排序）。
+ */
+@Composable
+fun ReorderDialog(
+    title: String,
+    items: List<String>,
+    onConfirm: (List<String>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var order by remember { mutableStateOf(items) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .glassCard(RoundedCornerShape(16.dp))
+                .padding(14.dp),
+        ) {
+            Text(
+                title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkStrong,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "使用上下箭头调整顺序",
+                fontSize = 8.sp,
+                color = Palette.InkLight,
+            )
+            Spacer(Modifier.height(8.dp))
+            order.forEachIndexed { i, name ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(34.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        name,
+                        fontSize = 10.sp,
+                        fontWeight = if (name == "全部") FontWeight.Bold else FontWeight.Normal,
+                        color = if (name == "全部") Palette.Purple else Palette.InkStrong,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        Icons.Filled.KeyboardArrowUp,
+                        contentDescription = "上移",
+                        tint = if (i > 0) Palette.InkMid else Palette.InkLight,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(enabled = i > 0) {
+                                order = order.toMutableList().apply {
+                                    val t = removeAt(i)
+                                    add(i - 1, t)
+                                }
+                            },
+                    )
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        contentDescription = "下移",
+                        tint = if (i < order.size - 1) Palette.InkMid else Palette.InkLight,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(enabled = i < order.size - 1) {
+                                order = order.toMutableList().apply {
+                                    val t = removeAt(i)
+                                    add(i + 1, t)
+                                }
+                            },
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "取消",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable { onConfirm(order) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
