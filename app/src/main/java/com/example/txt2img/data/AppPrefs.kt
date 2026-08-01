@@ -139,13 +139,22 @@ class AppPrefs(private val context: Context) {
         context.dataStore.edit { p -> p[Keys.CATS] = PrefsJson.catsToJson(list) }
     }
 
-    suspend fun appendImage(prompt: String, time: Long, file: String, refFile: String? = null) {
+    suspend fun appendImage(
+        prompt: String,
+        time: Long,
+        file: String,
+        refFile: String? = null,
+        durationMs: Long = 0L,
+        ratio: String = "",
+    ) {
         context.dataStore.edit { p ->
             val cur = try { JSONArray(p[Keys.IMAGES] ?: "[]") } catch (e: Exception) { JSONArray() }
             val entry = JSONObject()
                 .put("prompt", prompt)
                 .put("time", time)
                 .put("file", file)
+                .put("dur", durationMs)
+                .put("ratio", ratio)
             if (!refFile.isNullOrEmpty()) entry.put("ref", refFile)
             cur.put(entry)
             p[Keys.IMAGES] = cur.toString()

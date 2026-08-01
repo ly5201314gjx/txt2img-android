@@ -155,7 +155,7 @@ fun GenerateScreen() {
     var styleIndex by rememberSaveable { mutableIntStateOf(0) }
     var qualityIndex by rememberSaveable { mutableIntStateOf(1) }
     var countIndex by rememberSaveable { mutableIntStateOf(0) }
-    var refImage by remember { mutableStateOf<File?>(null) }
+    var refImages by remember { mutableStateOf<List<File>>(emptyList()) }
     var genState by remember { mutableStateOf<GenState>(GenState.Idle) }
     var showModelPicker by remember { mutableStateOf(false) }
     var pickedCat by remember { mutableStateOf("") }
@@ -179,7 +179,7 @@ fun GenerateScreen() {
     val startEdit: (String, File) -> Unit = { editPrompt, imageFile ->
         prompt = editPrompt.take(MAX_PROMPT)
         styleIndex = 0
-        refImage = imageFile
+        refImages = listOf(imageFile)
         genState = GenState.Idle
         currentTab = 0
         Toast.makeText(context, "已载入参考图，可修改提示词后重新生成", Toast.LENGTH_SHORT).show()
@@ -220,8 +220,13 @@ fun GenerateScreen() {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val f = copyUriToCache(context, uri)
-            refImage = f
-            if (f == null) genState = GenState.Failed("读取参考图失败")
+            if (f == null) {
+                genState = GenState.Failed("读取参考图失败")
+            } else if (refImages.size < MAX_REFS) {
+                refImages = refImages + f
+            } else {
+                genState = GenState.Failed("最多支持 $MAX_REFS 张参考图")
+            }
         }
     }
 
@@ -254,9 +259,9 @@ fun GenerateScreen() {
                     onQualitySelect = { qualityIndex = it },
                     countIndex = countIndex,
                     onCountSelect = { countIndex = it },
-                    refImage = refImage,
-                    onPickRef = { picker.launch("image/*") },
-                    onRemoveRef = { refImage = null },
+                    refImages = refImages,
+                    onAddRef = { picker.launch("image/*") },
+                    onRemoveRef = { i -> refImages = refImages.filterIndexed { idx, _ -> idx != i } },
                     modelName = selectedModel,
                     genState = genState,
                     onGenerate = {
@@ -271,14 +276,9 @@ fun GenerateScreen() {
                         // 前台服务保活：切后台/锁屏不中断生成
                         KeepAliveService.start(context)
                         scope.launch {
-                            val ref = refImage?.let { f ->
-                                val mime = when (f.extension.lowercase()) {
-                                    "webp" -> "image/webp"
-                                    "jpg", "jpeg" -> "image/jpeg"
-                                    "gif" -> "image/gif"
-                                    else -> "image/png"
-                                }
-                                RefImage(f.readBytes(), mime)
+                            val t0 = System.currentTimeMillis()
+                            val refs = refImages.map { f ->
+                                RefImage(f.readBytes(), mimeOf(f))
                             }
                             ImageClient.generate(
                                 GenRequest(
@@ -290,15 +290,23 @@ fun GenerateScreen() {
                                     size = RATIO_SIZES[ratioIndex],
                                     qualityParam = qualityParam,
                                     steps = steps,
-                                    refImage = ref,
+                                    refImages = refs,
                                 ),
                             ).onSuccess { outcome ->
+                                val elapsed = System.currentTimeMillis() - t0
                                 val saved = mutableListOf<String>()
                                 val now = System.currentTimeMillis()
-                                val refName = ref?.let { store.saveRef(it.bytes, it.mime) }
+                                val refName = refs.firstOrNull()?.let { store.saveRef(it.bytes, it.mime) }
                                 outcome.images.forEachIndexed { idx, bytes ->
                                     store.save(bytes)?.let { name ->
-                                        prefs.appendImage(fullPrompt, now + idx, name, refName)
+                                        prefs.appendImage(
+                                            prompt = fullPrompt,
+                                            time = now + idx,
+                                            file = name,
+                                            refFile = refName,
+                                            durationMs = elapsed,
+                                            ratio = RATIO_OPTIONS[ratioIndex],
+                                        )
                                         saved.add(name)
                                     }
                                 }
@@ -419,9 +427,9 @@ private fun GeneratePage(
     onQualitySelect: (Int) -> Unit,
     countIndex: Int,
     onCountSelect: (Int) -> Unit,
-    refImage: File?,
-    onPickRef: () -> Unit,
-    onRemoveRef: () -> Unit,
+    refImages: List<File>,
+    onAddRef: () -> Unit,
+    onRemoveRef: (Int) -> Unit,
     modelName: String,
     genState: GenState,
     onGenerate: () -> Unit,
@@ -439,7 +447,7 @@ private fun GeneratePage(
         Spacer(Modifier.height(8.dp))
         PromptCard(prompt = prompt, onPromptChange = onPromptChange)
         Spacer(Modifier.height(8.dp))
-        RefImageRow(refImage = refImage, onPick = onPickRef, onRemove = onRemoveRef)
+        RefImagesRow(refs = refImages, onAdd = onAddRef, onRemove = onRemoveRef)
         Spacer(Modifier.height(8.dp))
         ParamPanel(
             modelName = modelName,
@@ -612,17 +620,21 @@ private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit) {
     }
 }
 
-// ============ 参考图 ============
+// ============ 参考图（多张联动，上限 3） ============
+
+private const val MAX_REFS = 3
 
 @Composable
-private fun RefImageRow(refImage: File?, onPick: () -> Unit, onRemove: () -> Unit) {
+private fun RefImagesRow(
+    refs: List<File>,
+    onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(44.dp)
             .glassCard(RoundedCornerShape(12.dp))
-            .padding(start = 10.dp, end = 10.dp)
-            .clickable(enabled = refImage == null, onClick = onPick),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -638,35 +650,54 @@ private fun RefImageRow(refImage: File?, onPick: () -> Unit, onRemove: () -> Uni
             fontWeight = FontWeight.Bold,
             color = Palette.InkStrong,
         )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            "${refs.size}/$MAX_REFS",
+            fontSize = 8.sp,
+            color = Palette.InkLight,
+        )
         Spacer(Modifier.weight(1f))
-        if (refImage == null) {
-            Text(
-                "选择图片 ＞",
-                fontSize = 10.sp,
-                color = Palette.InkMid,
-            )
-        } else {
-            AsyncImage(
-                model = refImage,
-                contentDescription = "参考图预览",
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(6.dp)),
-            )
-            Spacer(Modifier.width(8.dp))
+        refs.forEachIndexed { i, f ->
+            Box(Modifier.size(34.dp)) {
+                AsyncImage(
+                    model = f,
+                    contentDescription = "参考图 ${i + 1}",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(6.dp)),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE8E6F0))
+                        .clickable { onRemove(i) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "移除参考图 ${i + 1}",
+                        tint = Palette.InkMid,
+                        modifier = Modifier.size(8.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+        }
+        if (refs.size < MAX_REFS) {
             Box(
                 Modifier
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFE8E6F0))
-                    .clickable(onClick = onRemove),
-                contentAlignment = Alignment.Center,
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Palette.InputBg)
+                    .clickable(onClick = onAdd)
+                    .padding(horizontal = 9.dp, vertical = 4.dp),
             ) {
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "移除参考图",
-                    tint = Palette.InkMid,
-                    modifier = Modifier.size(10.dp),
+                Text(
+                    "＋添加",
+                    fontSize = 9.sp,
+                    color = Palette.InkMid,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }
@@ -1150,7 +1181,7 @@ private fun copyUriToCache(context: Context, uri: Uri): File? = try {
         mime.contains("gif") -> "gif"
         else -> "png"
     }
-    val file = File(context.cacheDir, "ref_${System.currentTimeMillis()}.$ext")
+    val file = File(context.cacheDir, "ref_${System.currentTimeMillis()}_${System.nanoTime()}.$ext")
     val input = context.contentResolver.openInputStream(uri) ?: return null
     input.use { ins ->
         file.outputStream().use { outs -> ins.copyTo(outs) }
@@ -1158,4 +1189,11 @@ private fun copyUriToCache(context: Context, uri: Uri): File? = try {
     file
 } catch (e: Exception) {
     null
+}
+
+private fun mimeOf(file: File): String = when (file.extension.lowercase()) {
+    "webp" -> "image/webp"
+    "jpg", "jpeg" -> "image/jpeg"
+    "gif" -> "image/gif"
+    else -> "image/png"
 }
