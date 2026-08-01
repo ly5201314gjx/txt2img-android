@@ -119,6 +119,7 @@ fun GalleryTab(
     var menuTarget by remember { mutableStateOf<ImageEntry?>(null) }
     var pendingMove by remember { mutableStateOf<ImageEntry?>(null) }
     var pendingDelete by remember { mutableStateOf<ImageEntry?>(null) }
+    var showPrompt by remember { mutableStateOf<String?>(null) }
     var showNewCat by remember { mutableStateOf(false) }
     var deleteCat by remember { mutableStateOf<String?>(null) }
     var permissionRequested by remember { mutableStateOf(false) }
@@ -342,6 +343,9 @@ fun GalleryTab(
                 viewer = null
                 onEdit(v.prompt, store.fileFor(v.file))
             },
+            onShowPrompt = { p ->
+                showPrompt = p
+            },
             onCopyPrompt = { p ->
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText("prompt", p))
@@ -361,6 +365,19 @@ fun GalleryTab(
                 viewer = null
                 pendingDelete = v
             },
+        )
+    }
+
+    // 完整提示词查看
+    showPrompt?.let { p ->
+        PromptViewDialog(
+            prompt = p,
+            onCopy = {
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("prompt", p))
+                toast("提示词已复制")
+            },
+            onDismiss = { showPrompt = null },
         )
     }
 

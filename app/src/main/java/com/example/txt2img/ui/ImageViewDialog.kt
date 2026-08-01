@@ -320,6 +320,7 @@ fun ImageDetailDialog(
     refFile: File?,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
+    onShowPrompt: (String) -> Unit,
     onCopyPrompt: (String) -> Unit,
     onSaveImage: () -> Unit,
     onSaveRef: () -> Unit,
@@ -347,7 +348,9 @@ fun ImageDetailDialog(
                     color = Palette.InkStrong,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onShowPrompt(prompt) },
                 )
                 Spacer(Modifier.width(8.dp))
                 Box(
@@ -380,6 +383,12 @@ fun ImageDetailDialog(
                     )
                 }
             }
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "点击提示词可查看全文",
+                fontSize = 7.sp,
+                color = Palette.InkLight,
+            )
             if (time > 0L) {
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -1346,6 +1355,87 @@ fun ReverseResultDialog(
                     fontWeight = FontWeight.SemiBold,
                     color = Palette.InkStrong,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * 完整提示词查看面板（长提示词滑动查看）。
+ */
+@Composable
+fun PromptViewDialog(prompt: String, onCopy: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .glassCard(RoundedCornerShape(16.dp))
+                .padding(16.dp),
+        ) {
+            Text(
+                "完整提示词",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkTitle,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "共 ${prompt.length} 字",
+                fontSize = 9.sp,
+                color = Palette.InkLight,
+            )
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 380.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.InputBg)
+                    .padding(10.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    prompt,
+                    fontSize = 10.sp,
+                    color = Palette.InkStrong,
+                    lineHeight = 15.sp,
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = onCopy),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "复制提示词",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "关闭",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
             }
         }
     }

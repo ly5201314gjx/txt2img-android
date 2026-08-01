@@ -20,9 +20,11 @@ object Notifier {
 
     const val CHANNEL_GEN = "gen_channel"
     const val CHANNEL_KEEP = "keep_channel"
+    const val CHANNEL_REVERSE = "reverse_channel"
 
     private const val GEN_NOTIF_ID = 2001
     private const val KEEP_NOTIF_ID = 2002
+    private const val REVERSE_NOTIF_ID = 2003
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -38,11 +40,20 @@ object Notifier {
         )
         nm.createNotificationChannel(
             NotificationChannel(
+                CHANNEL_REVERSE,
+                "反推完成",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "图片反推提示词完成时推送"
+            },
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(
                 CHANNEL_KEEP,
                 "后台生成",
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "生成期间的持续通知（不打扰）"
+                description = "生成/反推期间的持续通知（不打扰）"
             },
         )
     }
@@ -75,6 +86,37 @@ object Notifier {
             .build()
         runCatching {
             NotificationManagerCompat.from(context).notify(GEN_NOTIF_ID, notification)
+        }
+    }
+
+    /** 反推完成 → 通知栏推送。无权限时静默跳过。 */
+    fun notifyReverseDone(context: Context, category: String, prompt: String) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        ensureChannels(context)
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            2,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val brief = if (prompt.length > 24) prompt.take(24) + "…" else prompt
+        val notification = NotificationCompat.Builder(context, CHANNEL_REVERSE)
+            .setSmallIcon(R.drawable.ic_stat_notify)
+            .setContentTitle("图片反推完成")
+            .setContentText("类型：$category · $brief")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(prompt))
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(context).notify(REVERSE_NOTIF_ID, notification)
         }
     }
 
