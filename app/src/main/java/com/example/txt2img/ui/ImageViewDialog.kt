@@ -59,6 +59,7 @@ fun GlassImageDialog(
     prompt: String,
     time: Long = 0L,
     onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     categories: List<String> = emptyList(),
     pickedCat: String = "",
     onPickCategory: (String) -> Unit = {},
@@ -97,21 +98,58 @@ fun GlassImageDialog(
                 CategoryBar(categories, pickedCat, onPickCategory)
             }
             Spacer(Modifier.height(12.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.ButtonBlue)
-                    .clickable(onClick = onDismiss),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "完成",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                )
+            if (onEdit != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Palette.InputBg)
+                            .clickable(onClick = onEdit),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "继续微调",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Palette.InkStrong,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Palette.ButtonBlue)
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "完成",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "完成",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
             }
         }
     }
@@ -125,6 +163,7 @@ fun MultiImageDialog(
     images: List<File>,
     prompt: String,
     onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     categories: List<String> = emptyList(),
     pickedCat: String = "",
     onPickCategory: (String) -> Unit = {},
@@ -168,21 +207,58 @@ fun MultiImageDialog(
                 )
             }
             Spacer(Modifier.height(4.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.ButtonBlue)
-                    .clickable(onClick = onDismiss),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "完成",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                )
+            if (onEdit != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Palette.InputBg)
+                            .clickable(onClick = onEdit),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "继续微调",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Palette.InkStrong,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Palette.ButtonBlue)
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "完成",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "完成",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
             }
         }
     }
@@ -232,7 +308,7 @@ private fun CatChip(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * 作品详情面板：下载到相册 / 复制提示词 / 保存参考图 / 删除。
+ * 作品详情面板：二次编辑 / 下载到相册 / 复制提示词 / 保存参考图 / 删除。
  */
 @Composable
 fun ImageDetailDialog(
@@ -241,6 +317,7 @@ fun ImageDetailDialog(
     time: Long,
     refFile: File?,
     onDismiss: () -> Unit,
+    onEdit: () -> Unit,
     onCopyPrompt: (String) -> Unit,
     onSaveImage: () -> Unit,
     onSaveRef: () -> Unit,
@@ -271,6 +348,21 @@ fun ImageDetailDialog(
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.Purple)
+                        .clickable(onClick = onEdit)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                ) {
+                    Text(
+                        "二次编辑",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(8.dp))

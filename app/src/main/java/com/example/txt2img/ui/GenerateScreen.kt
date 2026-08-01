@@ -3,6 +3,7 @@ package com.example.txt2img.ui
 import android.Manifest
 import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -174,6 +175,16 @@ fun GenerateScreen() {
 
     val scope = rememberCoroutineScope()
 
+    // 二次编辑协调逻辑：载入原图作参考图 + 载入提示词 → 返回生成页现场微调
+    val startEdit: (String, File) -> Unit = { editPrompt, imageFile ->
+        prompt = editPrompt.take(MAX_PROMPT)
+        styleIndex = 0
+        refImage = imageFile
+        genState = GenState.Idle
+        currentTab = 0
+        Toast.makeText(context, "已载入参考图，可修改提示词后重新生成", Toast.LENGTH_SHORT).show()
+    }
+
     // 进入应用即请求通知权限（Android 13+）
     val notifPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -307,7 +318,13 @@ fun GenerateScreen() {
                     onModelClick = { showModelPicker = true },
                 )
 
-                1 -> GalleryTab(imagesJson = imagesJson, catsJson = catsJson, store = store, prefs = prefs)
+                1 -> GalleryTab(
+                    imagesJson = imagesJson,
+                    catsJson = catsJson,
+                    store = store,
+                    prefs = prefs,
+                    onEdit = { p, f -> startEdit(p, f) },
+                )
 
                 else -> MyTab(prefs = prefs)
             }
@@ -324,20 +341,27 @@ fun GenerateScreen() {
         )
     }
 
-    // 生成结果弹窗（多图），关闭时应用所选分类
+    // 生成结果弹窗（多图），关闭/微调时应用所选分类
     val ready = genState as? GenState.Ready
     if (ready != null) {
         fun applyCat() {
             if (ready.files.isNotEmpty()) {
                 scope.launch { ready.files.forEach { prefs.setImageCategory(it, pickedCat) } }
             }
-            genState = GenState.Idle
+        }
+        val onEdit: () -> Unit = {
+            applyCat()
+            startEdit(ready.prompt, store.fileFor(ready.files.first()))
         }
         if (ready.files.size > 1) {
             MultiImageDialog(
                 images = ready.files.map { store.fileFor(it) },
                 prompt = ready.prompt,
-                onDismiss = ::applyCat,
+                onDismiss = {
+                    applyCat()
+                    genState = GenState.Idle
+                },
+                onEdit = onEdit,
                 categories = cats,
                 pickedCat = pickedCat,
                 onPickCategory = { pickedCat = it },
@@ -347,7 +371,11 @@ fun GenerateScreen() {
                 file = store.fileFor(ready.files.first()),
                 prompt = ready.prompt,
                 time = 0L,
-                onDismiss = ::applyCat,
+                onDismiss = {
+                    applyCat()
+                    genState = GenState.Idle
+                },
+                onEdit = onEdit,
                 categories = cats,
                 pickedCat = pickedCat,
                 onPickCategory = { pickedCat = it },
@@ -356,8 +384,7 @@ fun GenerateScreen() {
     }
 
     // 模型快捷选择面板
-    if (showModelPicker) {
-        ModelPickerDialog(
+    if (showModelPicker) {        ModelPickerDialog(
             providers = providers,
             current = current,
             onPick = { pid, m ->
