@@ -18,6 +18,7 @@ data class ProviderConfig(
     val url: String,
     val key: String,
     val models: List<String>,
+    val shownModels: List<String>,
     val selectedModel: String,
 )
 
@@ -40,6 +41,13 @@ object PrefsJson {
                         mArr.optString(j, "").takeIf { it.isNotEmpty() }?.let { models.add(it) }
                     }
                 }
+                val shown = mutableListOf<String>()
+                val sArr = o.optJSONArray("shown")
+                if (sArr != null) {
+                    for (j in 0 until sArr.length()) {
+                        sArr.optString(j, "").takeIf { it.isNotEmpty() }?.let { shown.add(it) }
+                    }
+                }
                 add(
                     ProviderConfig(
                         id = o.optString("id", ""),
@@ -47,6 +55,7 @@ object PrefsJson {
                         url = o.optString("url", ""),
                         key = o.optString("key", ""),
                         models = models,
+                        shownModels = shown,
                         selectedModel = o.optString("selected", ""),
                     ),
                 )
@@ -61,6 +70,8 @@ object PrefsJson {
         list.forEach { p ->
             val mArr = JSONArray()
             p.models.forEach { mArr.put(it) }
+            val sArr = JSONArray()
+            p.shownModels.forEach { sArr.put(it) }
             arr.put(
                 JSONObject()
                     .put("id", p.id)
@@ -68,6 +79,7 @@ object PrefsJson {
                     .put("url", p.url)
                     .put("key", p.key)
                     .put("models", mArr)
+                    .put("shown", sArr)
                     .put("selected", p.selectedModel),
             )
         }
@@ -113,6 +125,7 @@ class AppPrefs(private val context: Context) {
         val AGENT = stringPreferencesKey("agent_json")
         val VISION = stringPreferencesKey("vision_json")
         val REVERSE = booleanPreferencesKey("reverse_enabled")
+        val REVERSE_MODEL = stringPreferencesKey("reverse_json")
     }
 
     val providersJson: Flow<String> = context.dataStore.data.map { it[Keys.PROVIDERS] ?: "[]" }
@@ -121,6 +134,7 @@ class AppPrefs(private val context: Context) {
     val imagesJson: Flow<String> = context.dataStore.data.map { it[Keys.IMAGES] ?: "[]" }
     val agentJson: Flow<String> = context.dataStore.data.map { it[Keys.AGENT] ?: "{}" }
     val visionJson: Flow<String> = context.dataStore.data.map { it[Keys.VISION] ?: "{}" }
+    val reverseModelJson: Flow<String> = context.dataStore.data.map { it[Keys.REVERSE_MODEL] ?: "{}" }
     val reverseEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.REVERSE] ?: false }
     val askedBattery: Flow<Boolean> = context.dataStore.data.map { it[Keys.ASKED_BATTERY] ?: false }
 
@@ -135,6 +149,15 @@ class AppPrefs(private val context: Context) {
     suspend fun saveAgent(providerId: String, model: String) {
         context.dataStore.edit { p ->
             p[Keys.AGENT] = JSONObject()
+                .put("provider", providerId)
+                .put("model", model)
+                .toString()
+        }
+    }
+
+    suspend fun saveReverseModel(providerId: String, model: String) {
+        context.dataStore.edit { p ->
+            p[Keys.REVERSE_MODEL] = JSONObject()
                 .put("provider", providerId)
                 .put("model", model)
                 .toString()

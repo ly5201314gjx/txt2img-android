@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -72,7 +73,6 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
 
     val providersJson by prefs.providersJson.collectAsState(initial = "[]")
     val currentJson by prefs.currentJson.collectAsState(initial = "{}")
-    val visionJson by prefs.visionJson.collectAsState(initial = "{}")
     var providers by remember(providersJson) { mutableStateOf(PrefsJson.parseProviders(providersJson)) }
     val current = remember(currentJson) { PrefsJson.parseCurrent(currentJson) }
 
@@ -166,22 +166,23 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                 onFetch = { fetchModelsFor(p.id, drafts[p.id] ?: ProviderDraft(p.name, p.url, p.key)) },
                 onSelectModel = { m ->
                     persist(providers.map { if (it.id == p.id) it.copy(selectedModel = m) else it })
-                    scope.launch {
-                        prefs.saveCurrent(p.id, m)
-                        // 协调性：此处选模型同样触发视觉能力测试并缓存
-                        val key = "${p.id}|$m"
-                        val cached = try {
-                            org.json.JSONObject(visionJson).optString(key, "")
-                        } catch (e: Exception) {
-                            ""
-                        }
-                        if (cached.isEmpty() && p.url.isNotBlank() && p.key.isNotBlank()) {
-                            val ok = ImageClient.testVision(p.url, p.key, m).isSuccess
-                            prefs.saveVisionResult(key, ok)
-                            toast(if (ok) "该模型支持图片识别，已启用反推" else "该模型不支持图片识别，反推不可用")
-                        }
-                    }
+                    scope.launch { prefs.saveCurrent(p.id, m) }
                     toast("已切换到 $m")
+                },
+                onToggleShown = { m ->
+                    persist(
+                        providers.map {
+                            if (it.id == p.id) {
+                                it.copy(
+                                    shownModels = if (m in it.shownModels) {
+                                        it.shownModels - m
+                                    } else {
+                                        it.shownModels + m
+                                    },
+                                )
+                            } else it
+                        },
+                    )
                 },
                 onSave = {
                     val d = drafts[p.id] ?: ProviderDraft(p.name, p.url, p.key)
@@ -203,7 +204,7 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                 .clickable {
                     val id = "p${System.currentTimeMillis()}"
                     val name = "供应商 ${providers.size + 1}"
-                    persist(providers + ProviderConfig(id, name, "", "", emptyList(), ""))
+                    persist(providers + ProviderConfig(id, name, "", "", emptyList(), emptyList(), ""))
                     drafts = (drafts + (id to ProviderDraft(name, "", ""))).toMutableMap()
                     expandedId = id
                 },
@@ -347,6 +348,7 @@ private fun ProviderCard(
     onToggleKey: () -> Unit,
     onFetch: () -> Unit,
     onSelectModel: (String) -> Unit,
+    onToggleShown: (String) -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -381,7 +383,15 @@ private fun ProviderCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    provider.url.ifEmpty { "未配置接口地址" },
+                    if (provider.url.isNotBlank()) {
+                        if (provider.shownModels.isNotEmpty()) {
+                            provider.url + " · 已展示 ${provider.shownModels.size} 个模型"
+                        } else {
+                            provider.url
+                        }
+                    } else {
+                        "未配置接口地址"
+                    },
                     fontSize = 8.sp,
                     color = Palette.InkLight,
                     maxLines = 1,
@@ -470,33 +480,40 @@ private fun ProviderCard(
                 if (provider.models.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "共 ${provider.models.size} 个模型 · 点击选用",
+                        "共 ${provider.models.size} 个模型 · 勾选展示 · 设为生图模型",
                         fontSize = 8.sp,
                         color = Palette.InkLight,
                     )
                     Spacer(Modifier.height(2.dp))
                     provider.models.forEach { m ->
-                        val isSel = provider.selectedModel == m
+                        val isShown = m in provider.shownModels
+                        val isCurrentModel = isCurrent && provider.selectedModel == m
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .height(32.dp)
-                                .clickable { onSelectModel(m) },
+                                .height(34.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
-                                Box(
-                                    Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isSel) Palette.Purple else Color.Transparent),
-                                )
-                                if (!isSel) {
-                                    Box(
-                                        Modifier
-                                            .size(12.dp)
-                                            .clip(CircleShape)
-                                            .border(1.dp, Palette.InkLight, CircleShape),
+                            // 勾选（展示子集）
+                            Box(
+                                Modifier
+                                    .size(18.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (isShown) Palette.Purple else Color.Transparent)
+                                    .border(
+                                        width = if (isShown) 0.dp else 1.dp,
+                                        color = Palette.InkLight,
+                                        shape = RoundedCornerShape(4.dp),
+                                    )
+                                    .clickable { onToggleShown(m) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (isShown) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(10.dp),
                                     )
                                 }
                             }
@@ -504,11 +521,41 @@ private fun ProviderCard(
                             Text(
                                 m,
                                 fontSize = 10.sp,
-                                color = if (isSel) Palette.Purple else Palette.InkStrong,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isCurrentModel) Palette.Purple else Palette.InkStrong,
+                                fontWeight = if (isCurrentModel) FontWeight.Bold else FontWeight.Normal,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
                             )
+                            if (isCurrentModel) {
+                                Box(
+                                    Modifier
+                                        .clip(RoundedCornerShape(99.dp))
+                                        .background(Palette.CreditBg)
+                                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        "使用中",
+                                        fontSize = 8.sp,
+                                        color = Palette.Purple,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            } else {
+                                Box(
+                                    Modifier
+                                        .clip(RoundedCornerShape(99.dp))
+                                        .background(Palette.InputBg)
+                                        .clickable { onSelectModel(m) }
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        "设为当前",
+                                        fontSize = 8.sp,
+                                        color = Palette.InkMid,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -556,7 +603,7 @@ private fun ProviderCard(
 @Composable
 private fun FieldLabel(text: String) {
     Text(text, fontSize = 9.sp, color = Palette.InkMid)
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(6.dp))
 }
 
 @Composable
@@ -568,10 +615,10 @@ private fun SettingsField(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(38.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Palette.InputBg)
-            .padding(horizontal = 10.dp),
+            .padding(start = 12.dp, end = 12.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         if (value.isEmpty()) {

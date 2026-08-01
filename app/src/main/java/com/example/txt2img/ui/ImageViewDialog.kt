@@ -1063,15 +1063,17 @@ fun ModelPickerDialog(
                                     modifier = Modifier.weight(1f),
                                 )
                             }
-                            if (p.models.isEmpty()) {
+                            // 仅展示勾选子集（未勾选时回退显示全部，保证可用）
+                            val displayModels = p.shownModels.ifEmpty { p.models }
+                            if (displayModels.isEmpty()) {
                                 Text(
-                                    "暂无模型，请在「我的」中获取",
+                                    "暂无展示模型，请在「我的」中勾选",
                                     fontSize = 8.sp,
                                     color = Palette.InkLight,
                                     modifier = Modifier.padding(start = 4.dp),
                                 )
                             }
-                            p.models.forEach { m ->
+                            displayModels.forEach { m ->
                                 val sel = current.providerId == p.id && current.model == m
                                 Row(
                                     Modifier
@@ -1431,6 +1433,103 @@ fun PromptViewDialog(prompt: String, onCopy: () -> Unit, onDismiss: () -> Unit) 
                 ) {
                     Text(
                         "关闭",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 提示词放大编辑面板。
+ */
+@Composable
+fun PromptEditorDialog(
+    prompt: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(prompt) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .glassCard(RoundedCornerShape(16.dp))
+                .padding(14.dp),
+        ) {
+            Text(
+                "编辑提示词",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.InkTitle,
+            )
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Palette.InputBg)
+                    .padding(10.dp),
+            ) {
+                BasicTextField(
+                    value = text,
+                    onValueChange = { if (it.length <= 500) text = it },
+                    modifier = Modifier.fillMaxSize(),
+                    textStyle = TextStyle(
+                        fontSize = 11.sp,
+                        color = Palette.InkStrong,
+                        lineHeight = 16.sp,
+                    ),
+                    cursorBrush = SolidColor(Palette.Purple),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Text(
+                    "支持多行编辑",
+                    fontSize = 8.sp,
+                    color = Palette.InkLight,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "${text.length}/500",
+                    fontSize = 8.sp,
+                    color = Palette.InkLight,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.InputBg)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "取消",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.InkStrong,
+                    )
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Palette.ButtonBlue)
+                        .clickable { onConfirm(text) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "确定",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
