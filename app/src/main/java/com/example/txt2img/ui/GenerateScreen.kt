@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -168,9 +169,11 @@ fun GenerateScreen() {
     var refImages by remember { mutableStateOf<List<File>>(emptyList()) }
     var genState by remember { mutableStateOf<GenState>(GenState.Idle) }
     var showModelPicker by remember { mutableStateOf(false) }
+    var showPromptEditor by remember { mutableStateOf(false) }
     var pickedCat by remember { mutableStateOf("") }
     var agentEnabled by rememberSaveable { mutableStateOf(false) }
     var showAgentPicker by remember { mutableStateOf(false) }
+    var showReversePicker by remember { mutableStateOf(false) }
     var optimizing by remember { mutableStateOf(false) }
     var optimizeDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
     var reversing by remember { mutableStateOf(false) }
@@ -192,13 +195,20 @@ fun GenerateScreen() {
     val agentJson by prefs.agentJson.collectAsState(initial = "{}")
     val agentSel = remember(agentJson) { PrefsJson.parseCurrent(agentJson) }
     val visionJson by prefs.visionJson.collectAsState(initial = "{}")
+    val reverseModelJson by prefs.reverseModelJson.collectAsState(initial = "{}")
+    val reverseSel = remember(reverseModelJson) { PrefsJson.parseCurrent(reverseModelJson) }
+    val reverseProvider = providers.find { it.id == reverseSel.providerId }
+    val reverseBaseUrl = reverseProvider?.url.orEmpty()
+    val reverseApiKey = reverseProvider?.key.orEmpty()
+    val reverseModel = reverseSel.model
     val reverseEnabled by prefs.reverseEnabled.collectAsState(initial = false)
-    val visionOk = remember(visionJson, current.providerId, selectedModel) {
-        if (current.providerId.isEmpty() || selectedModel.isEmpty()) {
+    // 视觉能力绑定反推模型（与生图/Agent 模型完全独立）
+    val reverseVisionOk = remember(visionJson, reverseSel.providerId, reverseSel.model) {
+        if (reverseSel.providerId.isEmpty() || reverseSel.model.isEmpty()) {
             false
         } else {
             try {
-                org.json.JSONObject(visionJson).optString("${current.providerId}|$selectedModel", "") == "yes"
+                org.json.JSONObject(visionJson).optString("${reverseSel.providerId}|${reverseSel.model}", "") == "yes"
             } catch (e: Exception) {
                 false
             }
@@ -299,10 +309,20 @@ fun GenerateScreen() {
                     agentEnabled = agentEnabled,
                     agentModelName = if (agentSel.model.isBlank()) "" else agentSel.model,
                     optimizing = optimizing,
-                    visionOk = visionOk,
+                    visionOk = reverseVisionOk,
+                    reverseModelName = if (reverseModel.isBlank()) "" else reverseModel,
                     reversing = reversing,
                     reverseEnabled = reverseEnabled,
                     onToggleReverse = { scope.launch { prefs.saveReverseEnabled(!reverseEnabled) } },
+                    onPickReverseModel = {
+                        if (providers.isEmpty()) {
+                            Toast.makeText(context, "请先添加供应商", Toast.LENGTH_SHORT).show()
+                            currentTab = 2
+                        } else {
+                            showReversePicker = true
+                        }
+                    },
+                    onOpenEditor = { showPromptEditor = true },
                     onToggleAgent = { agentEnabled = !agentEnabled },
                     onOpenAgentPicker = {
                         if (providers.isEmpty()) {
@@ -318,9 +338,12 @@ fun GenerateScreen() {
                             Toast.makeText(context, "反推功能未开启，请先打开开关", Toast.LENGTH_SHORT).show()
                         } else if (refImages.isEmpty()) {
                             Toast.makeText(context, "请先上传参考图", Toast.LENGTH_SHORT).show()
-                        } else if (!visionOk) {
-                            Toast.makeText(context, "当前模型未通过视觉测试，请先选择视觉模型", Toast.LENGTH_SHORT).show()
-                            showModelPicker = true
+                        } else if (reverseProvider == null || reverseModel.isBlank()) {
+                            Toast.makeText(context, "请先选择反推模型", Toast.LENGTH_SHORT).show()
+                            showReversePicker = true
+                        } else if (!reverseVisionOk) {
+                            Toast.makeText(context, "该模型未通过视觉测试，请选择其他多模态模型", Toast.LENGTH_SHORT).show()
+                            showReversePicker = true
                         } else if (reversing) {
                             // 进行中忽略
                         } else {
@@ -332,7 +355,7 @@ fun GenerateScreen() {
                                 val mime = mimeOf(refFile)
                                 val dataUri = "data:$mime;base64," +
                                     android.util.Base64.encodeToString(refFile.readBytes(), android.util.Base64.NO_WRAP)
-                                ImageClient.reversePrompt(baseUrl, apiKey, selectedModel, dataUri)
+                                ImageClient.reversePrompt(reverseBaseUrl, reverseApiKey, reverseModel, dataUri)
                                     .onSuccess { r ->
                                         reverseDialog = r
                                         Notifier.notifyReverseDone(context, r.category, r.prompt)
@@ -501,32 +524,24 @@ fun GenerateScreen() {
             )
         }
     }
-    // 模型快捷选择面板（生成模型，选中后自动做视觉能力测试）
+    // 提示词放大编辑面板
+    if (showPromptEditor) {
+        PromptEditorDialog(
+            prompt = prompt,
+            onConfirm = { p ->
+                prompt = p
+                showPromptEditor = false
+            },
+            onDismiss = { showPromptEditor = false },
+        )
+    }
+
+    // 模型快捷选择面板（生成模型，与 Agent/反推模型完全独立）
     if (showModelPicker) {
         ModelPickerDialog(
             providers = providers,
             current = current,
             onPick = { pid, m ->
-                val key = "$pid|$m"
-                val cached = try {
-                    org.json.JSONObject(visionJson).optString(key, "")
-                } catch (e: Exception) {
-                    ""
-                }
-                if (cached.isEmpty()) {
-                    val p = providers.find { it.id == pid }
-                    if (p != null) {
-                        scope.launch {
-                            val ok = ImageClient.testVision(p.url, p.key, m).isSuccess
-                            prefs.saveVisionResult(key, ok)
-                            Toast.makeText(
-                                context,
-                                if (ok) "该模型支持图片识别，已启用反推" else "该模型不支持图片识别，反推不可用",
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                    }
-                }
                 scope.launch {
                     prefs.saveCurrent(pid, m)
                     prefs.saveProviders(
@@ -543,7 +558,7 @@ fun GenerateScreen() {
         )
     }
 
-    // Agent 扶正模型选择面板
+    // Agent 扶正模型选择面板（独立）
     if (showAgentPicker) {
         ModelPickerDialog(
             providers = providers,
@@ -562,7 +577,46 @@ fun GenerateScreen() {
         )
     }
 
-    // 扶正结果预览
+    // 反推模型选择面板（独立，选中后自动视觉测试）
+    if (showReversePicker) {
+        ModelPickerDialog(
+            providers = providers,
+            current = reverseSel,
+            title = "选择反推模型",
+            subtitle = "需支持图片识别的多模态模型，选中后自动测试",
+            onPick = { pid, m ->
+                val key = "$pid|$m"
+                val cached = try {
+                    org.json.JSONObject(visionJson).optString(key, "")
+                } catch (e: Exception) {
+                    ""
+                }
+                if (cached.isEmpty()) {
+                    val p = providers.find { it.id == pid }
+                    if (p != null) {
+                        scope.launch {
+                            val ok = ImageClient.testVision(p.url, p.key, m).isSuccess
+                            prefs.saveVisionResult(key, ok)
+                            Toast.makeText(
+                                context,
+                                if (ok) "该模型支持图片识别，已启用反推" else "该模型不支持图片识别，请换一个模型",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                }
+                scope.launch { prefs.saveReverseModel(pid, m) }
+                showReversePicker = false
+            },
+            onGoConfig = {
+                showReversePicker = false
+                currentTab = 2
+            },
+            onDismiss = { showReversePicker = false },
+        )
+    }
+
+    // 扶正结果预览：应用仅回填提示词框，生成需再点「开始生成」
     optimizeDialog?.let { (orig, opt) ->
         OptimizePreviewDialog(
             original = orig,
@@ -571,61 +625,7 @@ fun GenerateScreen() {
                 prompt = opt.take(MAX_PROMPT)
                 agentEnabled = false
                 optimizeDialog = null
-                // 应用后直接生图
-                val styleOnly = STYLE_OPTIONS[styleIndex].second.removePrefix("，")
-                    .ifEmpty { SAMPLE_PROMPTS.first() }
-                val (qualityParam, steps) = qualityFor(qualityIndex)
-                val doGenerate: (String) -> Unit = { userText ->
-                    val fullPrompt = userText + STYLE_OPTIONS[styleIndex].second
-                    genState = GenState.Loading
-                    KeepAliveService.start(context)
-                    scope.launch {
-                        val t0 = System.currentTimeMillis()
-                        val refs = refImages.map { f -> RefImage(f.readBytes(), mimeOf(f)) }
-                        ImageClient.generate(
-                            GenRequest(
-                                baseUrl = baseUrl,
-                                apiKey = apiKey,
-                                model = selectedModel,
-                                prompt = fullPrompt,
-                                count = COUNT_VALUES[countIndex],
-                                size = RATIO_SIZES[ratioIndex],
-                                qualityParam = qualityParam,
-                                steps = steps,
-                                refImages = refs,
-                            ),
-                        ).onSuccess { outcome ->
-                            val elapsed = System.currentTimeMillis() - t0
-                            val saved = mutableListOf<String>()
-                            val now = System.currentTimeMillis()
-                            val refName = refs.firstOrNull()?.let { store.saveRef(it.bytes, it.mime) }
-                            outcome.images.forEachIndexed { idx, bytes ->
-                                store.save(bytes)?.let { name ->
-                                    prefs.appendImage(
-                                        prompt = fullPrompt,
-                                        time = now + idx,
-                                        file = name,
-                                        refFile = refName,
-                                        durationMs = elapsed,
-                                        ratio = RATIO_OPTIONS[ratioIndex],
-                                    )
-                                    saved.add(name)
-                                }
-                            }
-                            KeepAliveService.stop(context)
-                            if (saved.isNotEmpty()) {
-                                genState = GenState.Ready(saved, fullPrompt)
-                                Notifier.notifyGenerationDone(context, saved.size, fullPrompt)
-                            } else {
-                                genState = GenState.Failed("图片保存失败")
-                            }
-                        }.onFailure { e ->
-                            KeepAliveService.stop(context)
-                            genState = GenState.Failed(e.message ?: "生成失败")
-                        }
-                    }
-                }
-                doGenerate(opt)
+                Toast.makeText(context, "已应用优化后的提示词，点击「开始生成」继续", Toast.LENGTH_SHORT).show()
             },
             onCancel = { optimizeDialog = null },
         )
@@ -695,12 +695,15 @@ private fun GeneratePage(
     agentModelName: String,
     optimizing: Boolean,
     visionOk: Boolean,
+    reverseModelName: String,
     reversing: Boolean,
     reverseEnabled: Boolean,
     onToggleReverse: () -> Unit,
+    onPickReverseModel: () -> Unit,
     onToggleAgent: () -> Unit,
     onOpenAgentPicker: () -> Unit,
     onReverse: () -> Unit,
+    onOpenEditor: () -> Unit,
     onGenerate: () -> Unit,
     onModelClick: () -> Unit,
 ) {
@@ -714,7 +717,11 @@ private fun GeneratePage(
     ) {
         Header()
         Spacer(Modifier.height(8.dp))
-        PromptCard(prompt = prompt, onPromptChange = onPromptChange)
+        PromptCard(
+            prompt = prompt,
+            onPromptChange = onPromptChange,
+            onOpenEditor = onOpenEditor,
+        )
         Spacer(Modifier.height(8.dp))
         RefImagesRow(refs = refImages, onAdd = onAddRef, onRemove = onRemoveRef)
         Spacer(Modifier.height(8.dp))
@@ -734,8 +741,10 @@ private fun GeneratePage(
         ReverseRow(
             enabled = reverseEnabled,
             visionOk = visionOk,
+            modelName = reverseModelName,
             reversing = reversing,
             onToggle = onToggleReverse,
+            onPickModel = onPickReverseModel,
             onClick = onReverse,
         )
         Spacer(Modifier.height(8.dp))
@@ -807,7 +816,7 @@ private fun Header() {
 // ============ 提示词输入卡片 ============
 
 @Composable
-private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit) {
+private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit, onOpenEditor: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -827,6 +836,16 @@ private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit) {
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = Palette.InkStrong,
+            )
+            Spacer(Modifier.weight(1f))
+            Icon(
+                Icons.Filled.OpenInFull,
+                contentDescription = "展开编辑",
+                tint = Palette.InkMid,
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onOpenEditor),
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -1315,8 +1334,10 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
 private fun ReverseRow(
     enabled: Boolean,
     visionOk: Boolean,
+    modelName: String,
     reversing: Boolean,
     onToggle: () -> Unit,
+    onPickModel: () -> Unit,
     onClick: () -> Unit,
 ) {
     Column(
@@ -1352,7 +1373,7 @@ private fun ReverseRow(
                     color = Palette.InkStrong,
                 )
                 Text(
-                    if (enabled) "多模态识别 · 生成细腻完整提示词" else "反推功能默认关闭",
+                    if (enabled) "独立反推模型 · 多模态识别" else "反推功能默认关闭",
                     fontSize = 8.sp,
                     color = Palette.InkLight,
                 )
@@ -1360,6 +1381,33 @@ private fun ReverseRow(
             TogglePill(enabled = enabled, onToggle = onToggle)
         }
         if (enabled) {
+            Spacer(Modifier.height(6.dp))
+            // 反推模型选择（独立于生图/Agent）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.InputBg)
+                    .clickable(onClick = onPickModel)
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "反推模型",
+                    fontSize = 9.sp,
+                    color = Palette.InkMid,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    if (modelName.isBlank()) "未选择，点击选择 ＞" else "$modelName ＞",
+                    fontSize = 9.sp,
+                    color = if (modelName.isBlank()) Palette.InkLight else Palette.Purple,
+                    fontWeight = if (modelName.isBlank()) FontWeight.Normal else FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.height(6.dp))
             Row(
                 Modifier
@@ -1376,12 +1424,13 @@ private fun ReverseRow(
                 Text(
                     when {
                         reversing -> "反推中，请稍候…"
+                        modelName.isBlank() -> "选择模型后可开始"
                         visionOk -> "视觉模型就绪"
-                        else -> "需先选择视觉模型"
+                        else -> "未通过视觉测试"
                     },
                     fontSize = 9.sp,
-                    color = if (visionOk) Palette.Purple else Palette.InkMid,
-                    fontWeight = if (visionOk) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (visionOk && modelName.isNotBlank()) Palette.Purple else Palette.InkMid,
+                    fontWeight = if (visionOk && modelName.isNotBlank()) FontWeight.SemiBold else FontWeight.Normal,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
