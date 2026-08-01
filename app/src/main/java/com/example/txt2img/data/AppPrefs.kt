@@ -112,6 +112,7 @@ class AppPrefs(private val context: Context) {
         val ASKED_BATTERY = booleanPreferencesKey("asked_battery")
         val AGENT = stringPreferencesKey("agent_json")
         val VISION = stringPreferencesKey("vision_json")
+        val REVERSE = booleanPreferencesKey("reverse_enabled")
     }
 
     val providersJson: Flow<String> = context.dataStore.data.map { it[Keys.PROVIDERS] ?: "[]" }
@@ -120,10 +121,15 @@ class AppPrefs(private val context: Context) {
     val imagesJson: Flow<String> = context.dataStore.data.map { it[Keys.IMAGES] ?: "[]" }
     val agentJson: Flow<String> = context.dataStore.data.map { it[Keys.AGENT] ?: "{}" }
     val visionJson: Flow<String> = context.dataStore.data.map { it[Keys.VISION] ?: "{}" }
+    val reverseEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.REVERSE] ?: false }
     val askedBattery: Flow<Boolean> = context.dataStore.data.map { it[Keys.ASKED_BATTERY] ?: false }
 
     suspend fun markAskedBattery() {
         context.dataStore.edit { p -> p[Keys.ASKED_BATTERY] = true }
+    }
+
+    suspend fun saveReverseEnabled(v: Boolean) {
+        context.dataStore.edit { p -> p[Keys.REVERSE] = v }
     }
 
     suspend fun saveAgent(providerId: String, model: String) {

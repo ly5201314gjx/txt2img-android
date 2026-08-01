@@ -72,6 +72,7 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
 
     val providersJson by prefs.providersJson.collectAsState(initial = "[]")
     val currentJson by prefs.currentJson.collectAsState(initial = "{}")
+    val visionJson by prefs.visionJson.collectAsState(initial = "{}")
     var providers by remember(providersJson) { mutableStateOf(PrefsJson.parseProviders(providersJson)) }
     val current = remember(currentJson) { PrefsJson.parseCurrent(currentJson) }
 
@@ -165,7 +166,21 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                 onFetch = { fetchModelsFor(p.id, drafts[p.id] ?: ProviderDraft(p.name, p.url, p.key)) },
                 onSelectModel = { m ->
                     persist(providers.map { if (it.id == p.id) it.copy(selectedModel = m) else it })
-                    scope.launch { prefs.saveCurrent(p.id, m) }
+                    scope.launch {
+                        prefs.saveCurrent(p.id, m)
+                        // 协调性：此处选模型同样触发视觉能力测试并缓存
+                        val key = "${p.id}|$m"
+                        val cached = try {
+                            org.json.JSONObject(visionJson).optString(key, "")
+                        } catch (e: Exception) {
+                            ""
+                        }
+                        if (cached.isEmpty() && p.url.isNotBlank() && p.key.isNotBlank()) {
+                            val ok = ImageClient.testVision(p.url, p.key, m).isSuccess
+                            prefs.saveVisionResult(key, ok)
+                            toast(if (ok) "该模型支持图片识别，已启用反推" else "该模型不支持图片识别，反推不可用")
+                        }
+                    }
                     toast("已切换到 $m")
                 },
                 onSave = {

@@ -102,7 +102,9 @@ import com.example.txt2img.ui.theme.Palette
 import com.example.txt2img.util.SystemUtils
 import java.io.File
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val MAX_PROMPT = 500
 
@@ -190,6 +192,7 @@ fun GenerateScreen() {
     val agentJson by prefs.agentJson.collectAsState(initial = "{}")
     val agentSel = remember(agentJson) { PrefsJson.parseCurrent(agentJson) }
     val visionJson by prefs.visionJson.collectAsState(initial = "{}")
+    val reverseEnabled by prefs.reverseEnabled.collectAsState(initial = false)
     val visionOk = remember(visionJson, current.providerId, selectedModel) {
         if (current.providerId.isEmpty() || selectedModel.isEmpty()) {
             false
@@ -298,6 +301,8 @@ fun GenerateScreen() {
                     optimizing = optimizing,
                     visionOk = visionOk,
                     reversing = reversing,
+                    reverseEnabled = reverseEnabled,
+                    onToggleReverse = { scope.launch { prefs.saveReverseEnabled(!reverseEnabled) } },
                     onToggleAgent = { agentEnabled = !agentEnabled },
                     onOpenAgentPicker = {
                         if (providers.isEmpty()) {
@@ -308,7 +313,10 @@ fun GenerateScreen() {
                         }
                     },
                     onReverse = {
-                        if (refImages.isEmpty()) {
+                        if (!reverseEnabled) {
+                            // 功能开关关闭，仅提示
+                            Toast.makeText(context, "反推功能未开启，请先打开开关", Toast.LENGTH_SHORT).show()
+                        } else if (refImages.isEmpty()) {
                             Toast.makeText(context, "请先上传参考图", Toast.LENGTH_SHORT).show()
                         } else if (!visionOk) {
                             Toast.makeText(context, "当前模型未通过视觉测试，请先选择视觉模型", Toast.LENGTH_SHORT).show()
@@ -317,16 +325,22 @@ fun GenerateScreen() {
                             // 进行中忽略
                         } else {
                             reversing = true
+                            // 反推期间保活：切后台/锁屏不中断
+                            KeepAliveService.start(context)
                             val refFile = refImages.first()
                             scope.launch {
                                 val mime = mimeOf(refFile)
                                 val dataUri = "data:$mime;base64," +
                                     android.util.Base64.encodeToString(refFile.readBytes(), android.util.Base64.NO_WRAP)
                                 ImageClient.reversePrompt(baseUrl, apiKey, selectedModel, dataUri)
-                                    .onSuccess { r -> reverseDialog = r }
+                                    .onSuccess { r ->
+                                        reverseDialog = r
+                                        Notifier.notifyReverseDone(context, r.category, r.prompt)
+                                    }
                                     .onFailure { e ->
                                         Toast.makeText(context, "反推失败：${e.message?.take(80)}", Toast.LENGTH_SHORT).show()
                                     }
+                                KeepAliveService.stop(context)
                                 reversing = false
                             }
                         }
@@ -637,7 +651,9 @@ fun GenerateScreen() {
                 },
                 onSave = {
                     scope.launch {
-                        val name = store.save(sourceFile.readBytes())
+                        val name = withContext(Dispatchers.IO) {
+                            store.save(sourceFile.readBytes())
+                        }
                         if (name != null) {
                             prefs.appendImage(
                                 prompt = r.prompt,
@@ -680,6 +696,8 @@ private fun GeneratePage(
     optimizing: Boolean,
     visionOk: Boolean,
     reversing: Boolean,
+    reverseEnabled: Boolean,
+    onToggleReverse: () -> Unit,
     onToggleAgent: () -> Unit,
     onOpenAgentPicker: () -> Unit,
     onReverse: () -> Unit,
@@ -714,8 +732,10 @@ private fun GeneratePage(
         )
         Spacer(Modifier.height(10.dp))
         ReverseRow(
+            enabled = reverseEnabled,
             visionOk = visionOk,
             reversing = reversing,
+            onToggle = onToggleReverse,
             onClick = onReverse,
         )
         Spacer(Modifier.height(8.dp))
@@ -1292,46 +1312,86 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
 // ============ 图片反推（多模态） ============
 
 @Composable
-private fun ReverseRow(visionOk: Boolean, reversing: Boolean, onClick: () -> Unit) {
-    Row(
+private fun ReverseRow(
+    enabled: Boolean,
+    visionOk: Boolean,
+    reversing: Boolean,
+    onToggle: () -> Unit,
+    onClick: () -> Unit,
+) {
+    Column(
         Modifier
             .fillMaxWidth()
-            .height(40.dp)
             .glassCard(RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp)
-            .clickable(onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Icon(
-            Icons.Filled.Search,
-            contentDescription = null,
-            tint = Palette.InkMid,
-            modifier = Modifier.size(12.dp),
-        )
-        Spacer(Modifier.width(6.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                "图片反推提示词",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = Palette.InkStrong,
-            )
-            Text(
-                "上传参考图，让多模态模型识别并生成细腻完整提示词",
-                fontSize = 8.sp,
-                color = Palette.InkLight,
-            )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.CreditBg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = Palette.Purple,
+                    modifier = Modifier.size(13.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "图片反推提示词",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Palette.InkStrong,
+                )
+                Text(
+                    if (enabled) "多模态识别 · 生成细腻完整提示词" else "反推功能默认关闭",
+                    fontSize = 8.sp,
+                    color = Palette.InkLight,
+                )
+            }
+            TogglePill(enabled = enabled, onToggle = onToggle)
         }
-        Text(
-            when {
-                reversing -> "反推中…"
-                visionOk -> "可用 ＞"
-                else -> "需视觉模型 ＞"
-            },
-            fontSize = 9.sp,
-            color = if (visionOk) Palette.Purple else Palette.InkLight,
-            fontWeight = if (visionOk) FontWeight.SemiBold else FontWeight.Normal,
-        )
+        if (enabled) {
+            Spacer(Modifier.height(6.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (reversing) Palette.InputBg else Color.White.copy(alpha = 0.65f),
+                    )
+                    .clickable(enabled = !reversing, onClick = onClick)
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    when {
+                        reversing -> "反推中，请稍候…"
+                        visionOk -> "视觉模型就绪"
+                        else -> "需先选择视觉模型"
+                    },
+                    fontSize = 9.sp,
+                    color = if (visionOk) Palette.Purple else Palette.InkMid,
+                    fontWeight = if (visionOk) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (reversing) "…" else "开始反推 ＞",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Palette.InkStrong,
+                )
+            }
+        }
     }
 }
 
@@ -1389,22 +1449,27 @@ private fun AgentBar(
             }
             Spacer(Modifier.width(8.dp))
         }
-        Box(
-            Modifier
-                .width(34.dp)
-                .height(20.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (enabled) Palette.Purple else Palette.InputBg)
-                .clickable(onClick = onToggle),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                if (enabled) "开" else "关",
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (enabled) Color.White else Palette.InkMid,
-            )
-        }
+        TogglePill(enabled = enabled, onToggle = onToggle)
+    }
+}
+
+@Composable
+private fun TogglePill(enabled: Boolean, onToggle: () -> Unit) {
+    Box(
+        Modifier
+            .width(34.dp)
+            .height(20.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (enabled) Palette.Purple else Palette.InputBg)
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (enabled) "开" else "关",
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) Color.White else Palette.InkMid,
+        )
     }
 }
 
