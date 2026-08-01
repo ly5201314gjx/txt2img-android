@@ -110,16 +110,38 @@ class AppPrefs(private val context: Context) {
         val CATS = stringPreferencesKey("cats_json")
         val IMAGES = stringPreferencesKey("images_json")
         val ASKED_BATTERY = booleanPreferencesKey("asked_battery")
+        val AGENT = stringPreferencesKey("agent_json")
+        val VISION = stringPreferencesKey("vision_json")
     }
 
     val providersJson: Flow<String> = context.dataStore.data.map { it[Keys.PROVIDERS] ?: "[]" }
     val currentJson: Flow<String> = context.dataStore.data.map { it[Keys.CURRENT] ?: "{}" }
     val catsJson: Flow<String> = context.dataStore.data.map { it[Keys.CATS] ?: "[]" }
     val imagesJson: Flow<String> = context.dataStore.data.map { it[Keys.IMAGES] ?: "[]" }
+    val agentJson: Flow<String> = context.dataStore.data.map { it[Keys.AGENT] ?: "{}" }
+    val visionJson: Flow<String> = context.dataStore.data.map { it[Keys.VISION] ?: "{}" }
     val askedBattery: Flow<Boolean> = context.dataStore.data.map { it[Keys.ASKED_BATTERY] ?: false }
 
     suspend fun markAskedBattery() {
         context.dataStore.edit { p -> p[Keys.ASKED_BATTERY] = true }
+    }
+
+    suspend fun saveAgent(providerId: String, model: String) {
+        context.dataStore.edit { p ->
+            p[Keys.AGENT] = JSONObject()
+                .put("provider", providerId)
+                .put("model", model)
+                .toString()
+        }
+    }
+
+    /** 视觉能力测试结果缓存：key = "providerId|model"，value = "yes" / "no"。 */
+    suspend fun saveVisionResult(key: String, ok: Boolean) {
+        context.dataStore.edit { p ->
+            val cur = try { JSONObject(p[Keys.VISION] ?: "{}") } catch (e: Exception) { JSONObject() }
+            cur.put(key, if (ok) "yes" else "no")
+            p[Keys.VISION] = cur.toString()
+        }
     }
 
     suspend fun saveProviders(list: List<ProviderConfig>) {
@@ -146,6 +168,7 @@ class AppPrefs(private val context: Context) {
         refFile: String? = null,
         durationMs: Long = 0L,
         ratio: String = "",
+        type: String = "",
     ) {
         context.dataStore.edit { p ->
             val cur = try { JSONArray(p[Keys.IMAGES] ?: "[]") } catch (e: Exception) { JSONArray() }
@@ -155,6 +178,7 @@ class AppPrefs(private val context: Context) {
                 .put("file", file)
                 .put("dur", durationMs)
                 .put("ratio", ratio)
+                .put("type", type)
             if (!refFile.isNullOrEmpty()) entry.put("ref", refFile)
             cur.put(entry)
             p[Keys.IMAGES] = cur.toString()
