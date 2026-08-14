@@ -211,11 +211,14 @@ fun GlassDragSelector(
 }
 
 /**
- * 玻璃按压胶囊（真玻璃版）：实时模糊背景层 + 按压缩放回弹。
+ * 玻璃按压胶囊（真玻璃版）：实时模糊背景层 + 灵动阻尼按压（底部导航同款）。
  * 用于风格 chips、随机灵感、添加参考图等小型可点控件。
  */
 @Composable
-fun Modifier.realGlassChip(shape: RoundedCornerShape): Modifier {
+fun Modifier.realGlassChip(
+    shape: RoundedCornerShape,
+    pressedScale: Float = 1.3f,
+): Modifier {
     val glassActive = isLiquidGlassEnabled() &&
         LocalGlassConfig.current.glassLevel >= 1
     val base = if (glassActive) {
@@ -223,7 +226,7 @@ fun Modifier.realGlassChip(shape: RoundedCornerShape): Modifier {
     } else {
         this.glassChip(shape)
     }
-    return base.glassPressable()
+    return base.glassPressable(pressedScale = pressedScale)
 }
 
 /**
@@ -241,10 +244,13 @@ fun Modifier.realGlassField(shape: RoundedCornerShape): Modifier {
 }
 
 /**
- * 玻璃按压状态行（真玻璃版）。
+ * 玻璃按压状态行（真玻璃版）：轻阻尼（全宽行放大过度，取 1.03 微动）。
  */
 @Composable
-fun Modifier.realGlassRow(shape: RoundedCornerShape): Modifier {
+fun Modifier.realGlassRow(
+    shape: RoundedCornerShape,
+    pressedScale: Float = 1.03f,
+): Modifier {
     val glassActive = isLiquidGlassEnabled() &&
         LocalGlassConfig.current.glassLevel >= 1
     val base = if (glassActive) {
@@ -252,7 +258,11 @@ fun Modifier.realGlassRow(shape: RoundedCornerShape): Modifier {
     } else {
         this.glassField(shape)
     }
-    return base.glassPressable()
+    return base.glassPressable(
+        pressedScale = pressedScale,
+        dragFollow = false,
+        highlight = false,
+    )
 }
 
 /**

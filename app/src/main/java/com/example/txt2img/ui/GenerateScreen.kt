@@ -842,6 +842,7 @@ private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit, onOpenE
         Modifier
             .fillMaxWidth()
             .realGlassCard(RoundedCornerShape(12.dp))
+                .glassPressable(pressedScale = 1.02f, dragFollow = false, highlight = false)
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -957,6 +958,7 @@ private fun RefImagesRow(
         Modifier
             .fillMaxWidth()
             .realGlassCard(RoundedCornerShape(12.dp))
+                .glassPressable(pressedScale = 1.02f, dragFollow = false, highlight = false)
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1046,6 +1048,7 @@ private fun ParamPanel(
         Modifier
             .fillMaxWidth()
             .realGlassCard(RoundedCornerShape(12.dp))
+                .glassPressable(pressedScale = 1.02f, dragFollow = false, highlight = false)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         // 模型（点击跳转「我的」）
@@ -1053,7 +1056,7 @@ private fun ParamPanel(
             Modifier
                 .fillMaxWidth()
                 .height(36.dp)
-                .glassPressable()
+                .glassPressable(pressedScale = 1.03f, dragFollow = false, highlight = false)
                 .clickable(onClick = onModelClick),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1086,7 +1089,7 @@ private fun ParamPanel(
             Modifier
                 .fillMaxWidth()
                 .height(36.dp)
-                .glassPressable()
+                .glassPressable(pressedScale = 1.03f, dragFollow = false, highlight = false)
                 .clickable { styleExpanded = !styleExpanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1241,10 +1244,19 @@ private fun MiniSegmented(options: List<String>, selected: Int, onSelect: (Int) 
     ) {
         options.forEachIndexed { i, o ->
             val isSel = i == selected
+            val selScale by animateFloatAsState(
+                targetValue = if (isSel) 1f else 0.9f,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
+                label = "segSelScale",
+            )
             Box(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .graphicsLayer {
+                        scaleX = selScale
+                        scaleY = selScale
+                    }
                     .clip(shape)
                     .background(if (isSel) Color.White.copy(alpha = 0.55f) else Color.Transparent)
                     .border(
@@ -1252,6 +1264,7 @@ private fun MiniSegmented(options: List<String>, selected: Int, onSelect: (Int) 
                         color = Palette.Purple,
                         shape = shape,
                     )
+                    .glassPressable(pressedScale = 1.3f)
                     .clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
             ) {
@@ -1339,10 +1352,21 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
 
             Row(Modifier.fillMaxSize()) {
                 ratios.forEachIndexed { i, r ->
+                    val isSel = i == selected
+                    val selScale by animateFloatAsState(
+                        targetValue = if (isSel) 1f else 0.9f,
+                        animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
+                        label = "ratioSelScale",
+                    )
                     Box(
                         Modifier
                             .weight(1f)
                             .fillMaxHeight()
+                            .graphicsLayer {
+                                scaleX = selScale
+                                scaleY = selScale
+                            }
+                            .glassPressable(pressedScale = 1.3f)
                             .clickable {
                                 onSelect(i)
                             },
@@ -1377,6 +1401,7 @@ private fun ReverseRow(
         Modifier
             .fillMaxWidth()
             .realGlassCard(RoundedCornerShape(12.dp))
+                .glassPressable(pressedScale = 1.02f, dragFollow = false, highlight = false)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Row(
@@ -1488,6 +1513,7 @@ private fun AgentBar(
             .fillMaxWidth()
             .height(40.dp)
             .realGlassCard(RoundedCornerShape(12.dp))
+                .glassPressable(pressedScale = 1.02f, dragFollow = false, highlight = false)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1522,7 +1548,7 @@ private fun AgentBar(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .weight(1f)
-                        .glassPressable()
+                        .glassPressable(pressedScale = 1.15f)
                         .clickable(onClick = onPickModel),
                 )
             }
@@ -1541,7 +1567,7 @@ private fun TogglePill(enabled: Boolean, onToggle: () -> Unit) {
             .clip(RoundedCornerShape(10.dp))
             .background(if (enabled) Palette.Purple else Color.White.copy(alpha = 0.5f))
             .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-            .glassPressable()
+            .glassPressable(pressedScale = 1.3f)
             .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center,
     ) {
@@ -1570,9 +1596,9 @@ private fun GenerateButton(loading: Boolean, onClick: () -> Unit) {
 
     LaunchedEffect(pressed) {
         if (pressed) {
-            scale.animateTo(0.96f, tween(100, easing = LinearEasing))
+            scale.animateTo(1.02f, spring(dampingRatio = 0.5f, stiffness = 700f))
         } else {
-            scale.animateTo(1f, tween(120, easing = LinearEasing))
+            scale.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 500f))
         }
     }
 

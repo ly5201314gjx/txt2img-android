@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,10 +28,13 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.txt2img.ui.theme.Palette
+import kotlin.math.tanh
 import kotlinx.coroutines.launch
 
 /**
@@ -84,34 +86,82 @@ fun Modifier.glassChip(shape: Shape): Modifier = this
     .border(1.dp, Color.White.copy(alpha = 0.60f), shape)
 
 /**
- * 玻璃按压动效：按下缩小 0.96，松手弹簧回弹。
+ * 灵动阻尼按压（对齐底部导航 FloatingBottomBar 手感）：
  *
- * 观察式实现（不消费事件）：组件自身的 clickable 完全不受影响，
- * 尺寸不变，仅叠加 graphicsLayer 变换。
- * 用法：`Modifier.glassPressable().clickable { ... }`
+ * - 按下：弹簧放大至 [pressedScale]（底部导航同款 0.5/700 弹簧）
+ * - 跟随：手指位移时玻璃随 tanh 阻尼偏移（灵动跟手）
+ * - 高光：[InteractiveHighlight] AGSL 径向高光跟随手指
+ * - 松手：弹簧回弹归位
+ *
+ * 观察式实现（不消费事件）：组件自身的 clickable/滚动完全不受影响，
+ * 尺寸占位不变，仅叠加 graphicsLayer 变换。
  */
 @Composable
-fun Modifier.glassPressable(): Modifier {
+fun Modifier.glassPressable(
+    pressedScale: Float = 1.12f,
+    dragFollow: Boolean = true,
+    highlight: Boolean = true,
+): Modifier {
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
     val scale = remember { Animatable(1f) }
+    val offsetX = remember { Animatable(0f) }
+    val offsetY = remember { Animatable(0f) }
+    val maxOffset = with(density) { 6.dp.toPx() }
+    val pressHighlight = remember(scope) {
+        if (highlight) {
+            runCatching {
+                com.liquidglass.ui.animation.InteractiveHighlight(scope)
+            }.getOrNull()
+        } else {
+            null
+        }
+    }
+
     return this
         .graphicsLayer {
             scaleX = scale.value
             scaleY = scale.value
-            alpha = 1f - (1f - scale.value) * 2.5f
+            translationX = offsetX.value
+            translationY = offsetY.value
         }
+        .then(pressHighlight?.modifier ?: Modifier)
         .pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(false)
+                val startPos = down.position
                 scope.launch {
-                    scale.animateTo(0.96f, spring(dampingRatio = 0.55f, stiffness = 800f))
+                    scale.animateTo(pressedScale, spring(dampingRatio = 0.5f, stiffness = 700f))
                 }
-                waitForUpOrCancellation()
+                var lastPos = startPos
+                var ended = false
+                while (!ended) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (change.changedToUpIgnoreConsumed()) {
+                        ended = true
+                    } else if (dragFollow && change.position != lastPos) {
+                        lastPos = change.position
+                        val dx = (change.position.x - startPos.x)
+                        val dy = (change.position.y - startPos.y)
+                        val tx = maxOffset * tanh(0.08f * dx / maxOffset)
+                        val ty = maxOffset * tanh(0.08f * dy / maxOffset)
+                        scope.launch {
+                            launch { offsetX.snapTo(tx) }
+                            launch { offsetY.snapTo(ty) }
+                        }
+                    }
+                }
                 scope.launch {
-                    scale.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 600f))
+                    launch { scale.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 500f)) }
+                    if (dragFollow) {
+                        launch { offsetX.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 500f)) }
+                        launch { offsetY.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 500f)) }
+                    }
                 }
             }
         }
+        .then(pressHighlight?.gestureModifier ?: Modifier)
 }
 
 /**

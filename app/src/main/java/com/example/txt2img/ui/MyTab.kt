@@ -252,7 +252,7 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                 .height(48.dp)
                 .glassCard(RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp)
-                .glassPressable()
+                .glassPressable(pressedScale = 1.03f, dragFollow = false, highlight = false)
                 .clickable {
                     SystemUtils.requestBatteryExemption(context)
                     batteryOk = !SystemUtils.isBatteryOptimized(context)
@@ -391,7 +391,7 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                     .height(48.dp)
                     .glassCard(RoundedCornerShape(14.dp))
                     .padding(horizontal = 12.dp)
-                    .glassPressable()
+                    .glassPressable(pressedScale = 1.03f, dragFollow = false, highlight = false)
                     .clickable { showErrorDialog = true },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -448,7 +448,7 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                 .height(48.dp)
                 .glassCard(RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp)
-                .glassPressable()
+                .glassPressable(pressedScale = 1.03f, dragFollow = false, highlight = false)
                 .clickable { showAbout = true },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -618,7 +618,7 @@ private fun ProviderCard(
             Modifier
                 .fillMaxWidth()
                 .height(58.dp)
-                .glassPressable()
+                .glassPressable(pressedScale = 1.03f, dragFollow = false, highlight = false)
                 .clickable(onClick = onToggle)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -757,7 +757,7 @@ private fun ProviderCard(
                         .clip(RoundedCornerShape(10.dp))
                         .background(Palette.ButtonBlue.copy(alpha = 0.92f), RoundedCornerShape(10.dp))
                         .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-                        .glassPressable()
+                        .glassPressable(pressedScale = 1.1f)
                         .clickable(enabled = !loading, onClick = onFetch),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -840,7 +840,7 @@ private fun ProviderCard(
                                         .clip(RoundedCornerShape(99.dp))
                                         .background(Color.White.copy(alpha = 0.45f))
                                         .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(99.dp))
-                                        .glassPressable()
+                                        .glassPressable(pressedScale = 1.3f)
                                         .clickable { onSelectModel(m) }
                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                 ) {
@@ -864,7 +864,7 @@ private fun ProviderCard(
                             .clip(RoundedCornerShape(10.dp))
                             .background(Palette.ButtonBlue.copy(alpha = 0.92f), RoundedCornerShape(10.dp))
                             .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-                            .glassPressable()
+                            .glassPressable(pressedScale = 1.1f)
                             .clickable(onClick = onSave),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -882,7 +882,7 @@ private fun ProviderCard(
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xCCFBEDED), RoundedCornerShape(8.dp))
                             .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
-                            .glassPressable()
+                            .glassPressable(pressedScale = 1.1f)
                             .clickable(onClick = onDelete),
                         contentAlignment = Alignment.Center,
                     ) {
