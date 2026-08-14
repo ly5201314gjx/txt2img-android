@@ -12,5 +12,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Txt2Img"
+rootProject.name = "Txt2ImgLiquidGlass"
 include(":app")
+include(":liquid-glass")

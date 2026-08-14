@@ -1,7 +1,8 @@
-# Gradle
+﻿# Gradle
 .gradle/
 build/
 app/build/
+liquid-glass/build/
 
 # 本地配置（含本机 SDK 路径，勿提交）
 local.properties
@@ -13,3 +14,4 @@ local.properties
 captures/
 .externalNativeBuild
 .cxx
+.kotlin/

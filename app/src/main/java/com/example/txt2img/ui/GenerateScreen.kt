@@ -13,6 +13,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -77,6 +79,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -100,6 +104,8 @@ import com.example.txt2img.net.RefImage
 import com.example.txt2img.notif.Notifier
 import com.example.txt2img.service.KeepAliveService
 import com.example.txt2img.ui.theme.Palette
+import com.liquidglass.ui.modifier.isLiquidGlassEnabled
+import com.liquidglass.ui.modifier.liquidGlass
 import com.example.txt2img.util.SystemUtils
 import java.io.File
 import kotlin.math.roundToInt
@@ -155,12 +161,14 @@ private sealed class GenState {
 private val ErrorRed = Color(0xFFC2473F)
 
 @Composable
-fun GenerateScreen() {
+fun GenerateScreen(
+    currentTab: Int,
+    onTabSelected: (Int) -> Unit,
+) {
     val context = LocalContext.current
     val prefs = remember { AppPrefs(context) }
     val store = remember { ImageStore(context) }
 
-    var currentTab by remember { mutableIntStateOf(0) }
     var prompt by rememberSaveable { mutableStateOf("") }
     var ratioIndex by rememberSaveable { mutableIntStateOf(0) }
     var styleIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -225,7 +233,7 @@ fun GenerateScreen() {
         styleIndex = 0
         refImages = listOf(imageFile)
         genState = GenState.Idle
-        currentTab = 0
+        onTabSelected(0)
         Toast.makeText(context, "已载入参考图，可修改提示词后重新生成", Toast.LENGTH_SHORT).show()
     }
 
@@ -319,7 +327,7 @@ fun GenerateScreen() {
                     onPickReverseModel = {
                         if (providers.isEmpty()) {
                             Toast.makeText(context, "请先添加供应商", Toast.LENGTH_SHORT).show()
-                            currentTab = 2
+                            onTabSelected(2)
                         } else {
                             showReversePicker = true
                         }
@@ -329,7 +337,7 @@ fun GenerateScreen() {
                     onOpenAgentPicker = {
                         if (providers.isEmpty()) {
                             Toast.makeText(context, "请先添加供应商", Toast.LENGTH_SHORT).show()
-                            currentTab = 2
+                            onTabSelected(2)
                         } else {
                             showAgentPicker = true
                         }
@@ -486,16 +494,6 @@ fun GenerateScreen() {
                 else -> MyTab(prefs = prefs)
             }
         }
-
-        FloatingNav(
-            selected = currentTab,
-            onSelected = { currentTab = it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = 10.dp)
-                .padding(bottom = 12.dp),
-        )
     }
 
     // 生成结果弹窗（多图），关闭/微调时应用所选分类
@@ -567,7 +565,7 @@ fun GenerateScreen() {
             },
             onGoConfig = {
                 showModelPicker = false
-                currentTab = 2
+                onTabSelected(2)
             },
             onDismiss = { showModelPicker = false },
         )
@@ -586,7 +584,7 @@ fun GenerateScreen() {
             },
             onGoConfig = {
                 showAgentPicker = false
-                currentTab = 2
+                onTabSelected(2)
             },
             onDismiss = { showAgentPicker = false },
         )
@@ -625,7 +623,7 @@ fun GenerateScreen() {
             },
             onGoConfig = {
                 showReversePicker = false
-                currentTab = 2
+                onTabSelected(2)
             },
             onDismiss = { showReversePicker = false },
         )
@@ -727,10 +725,10 @@ private fun GeneratePage(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
+            .padding(top = 64.dp)
             .padding(bottom = 76.dp)
             .verticalScroll(rememberScrollState()),
     ) {
-        Header()
         Spacer(Modifier.height(8.dp))
         PromptCard(
             prompt = prompt,
@@ -804,10 +802,18 @@ private fun GeneratePage(
 
 @Composable
 private fun Header() {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val headerAlpha by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(450, easing = FastOutSlowInEasing),
+        label = "headerAlpha",
+    )
     Row(
         Modifier
             .fillMaxWidth()
             .height(44.dp)
+            .graphicsLayer { alpha = headerAlpha }
             .padding(start = 2.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -835,7 +841,7 @@ private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit, onOpenE
     Column(
         Modifier
             .fillMaxWidth()
-            .glassCard(RoundedCornerShape(12.dp))
+            .realGlassCard(RoundedCornerShape(12.dp))
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -868,8 +874,7 @@ private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit, onOpenE
             Modifier
                 .fillMaxWidth()
                 .height(72.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Palette.InputBg)
+                .realGlassField(RoundedCornerShape(8.dp))
                 .padding(8.dp),
         ) {
             Box(Modifier.weight(1f)) {
@@ -902,8 +907,7 @@ private fun PromptCard(prompt: String, onPromptChange: (String) -> Unit, onOpenE
                 Row(
                     Modifier
                         .height(20.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.White)
+                        .realGlassChip(RoundedCornerShape(10.dp))
                         .clickable { onPromptChange(SAMPLE_PROMPTS.random()) }
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -952,7 +956,7 @@ private fun RefImagesRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .glassCard(RoundedCornerShape(12.dp))
+            .realGlassCard(RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -989,8 +993,7 @@ private fun RefImagesRow(
                     Modifier
                         .align(Alignment.TopEnd)
                         .size(14.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFE8E6F0))
+                        .realGlassChip(RoundedCornerShape(7.dp))
                         .clickable { onRemove(i) },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1007,8 +1010,7 @@ private fun RefImagesRow(
         if (refs.size < MAX_REFS) {
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Palette.InputBg)
+                    .realGlassChip(RoundedCornerShape(10.dp))
                     .clickable(onClick = onAdd)
                     .padding(horizontal = 9.dp, vertical = 4.dp),
             ) {
@@ -1043,7 +1045,7 @@ private fun ParamPanel(
     Column(
         Modifier
             .fillMaxWidth()
-            .glassCard(RoundedCornerShape(12.dp))
+            .realGlassCard(RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         // 模型（点击跳转「我的」）
@@ -1051,6 +1053,7 @@ private fun ParamPanel(
             Modifier
                 .fillMaxWidth()
                 .height(36.dp)
+                .glassPressable()
                 .clickable(onClick = onModelClick),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1083,6 +1086,7 @@ private fun ParamPanel(
             Modifier
                 .fillMaxWidth()
                 .height(36.dp)
+                .glassPressable()
                 .clickable { styleExpanded = !styleExpanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1162,13 +1166,21 @@ private fun StyleChips(selected: Int, onSelect: (Int) -> Unit) {
     ) {
         STYLE_OPTIONS.forEachIndexed { i, (label, _) ->
             val isSel = i == selected
+            val selScale by animateFloatAsState(
+                targetValue = if (isSel) 1f else 0.92f,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
+                label = "chipSelScale",
+            )
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSel) Color.White else Color.Transparent)
+                    .graphicsLayer {
+                        scaleX = selScale
+                        scaleY = selScale
+                    }
+                    .realGlassChip(RoundedCornerShape(10.dp))
                     .border(
-                        width = if (isSel) 1.dp else 0.dp,
-                        color = Palette.Purple,
+                        width = 1.dp,
+                        color = if (isSel) Palette.Purple else Color.White.copy(alpha = 0.35f),
                         shape = RoundedCornerShape(10.dp),
                     )
                     .clickable { onSelect(i) }
@@ -1219,12 +1231,13 @@ private fun ParamRowWithSelector(
 
 @Composable
 private fun MiniSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    val shape = RoundedCornerShape(50)
     Row(
         Modifier
             .width(100.dp)
             .height(22.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(Palette.InputBg),
+            .realGlassField(shape)
+            .padding(1.dp),
     ) {
         options.forEachIndexed { i, o ->
             val isSel = i == selected
@@ -1232,12 +1245,12 @@ private fun MiniSegmented(options: List<String>, selected: Int, onSelect: (Int) 
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isSel) Color.White else Color.Transparent)
+                    .clip(shape)
+                    .background(if (isSel) Color.White.copy(alpha = 0.55f) else Color.Transparent)
                     .border(
                         width = if (isSel) 1.dp else 0.dp,
                         color = Palette.Purple,
-                        shape = RoundedCornerShape(6.dp),
+                        shape = shape,
                     )
                     .clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
@@ -1263,7 +1276,7 @@ private fun Hairline() {
     )
 }
 
-// 比例行：分段滑动选择器（线性滑行动画）
+// 比例行：玻璃胶囊 + 点击切换（指示条线性滑动）
 @Composable
 private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
     val ratios = RATIO_OPTIONS
@@ -1273,6 +1286,14 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
 
     LaunchedEffect(Unit) {
         indicatorX.snapTo(selected * with(density) { (154.dp / ratios.size).toPx() })
+    }
+    LaunchedEffect(selected) {
+        scope.launch {
+            indicatorX.animateTo(
+                selected * with(density) { (154.dp / ratios.size).toPx() },
+                tween(180, easing = LinearEasing),
+            )
+        }
     }
 
     Row(
@@ -1300,8 +1321,8 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
             Modifier
                 .width(154.dp)
                 .height(22.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Palette.InputBg),
+                .realGlassField(RoundedCornerShape(50))
+                .padding(1.dp),
         ) {
             val seg = maxWidth / ratios.size
             val segPx = with(density) { seg.toPx() }
@@ -1310,10 +1331,10 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
                 Modifier
                     .offset { IntOffset(indicatorX.value.roundToInt(), 0) }
                     .size(seg, 22.dp)
-                    .padding(2.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Palette.Purple, RoundedCornerShape(4.dp)),
+                    .padding(1.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.55f))
+                    .border(1.dp, Palette.Purple, RoundedCornerShape(50)),
             )
 
             Row(Modifier.fillMaxSize()) {
@@ -1324,9 +1345,6 @@ private fun RatioRow(selected: Int, onSelect: (Int) -> Unit) {
                             .fillMaxHeight()
                             .clickable {
                                 onSelect(i)
-                                scope.launch {
-                                    indicatorX.animateTo(i * segPx, tween(180, easing = LinearEasing))
-                                }
                             },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -1358,7 +1376,7 @@ private fun ReverseRow(
     Column(
         Modifier
             .fillMaxWidth()
-            .glassCard(RoundedCornerShape(12.dp))
+            .realGlassCard(RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Row(
@@ -1368,8 +1386,8 @@ private fun ReverseRow(
             Box(
                 Modifier
                     .size(26.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.CreditBg),
+                    .background(Color.White.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -1402,8 +1420,7 @@ private fun ReverseRow(
                 Modifier
                     .fillMaxWidth()
                     .height(30.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .realGlassRow(RoundedCornerShape(8.dp))
                     .clickable(onClick = onPickModel)
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1428,10 +1445,7 @@ private fun ReverseRow(
                 Modifier
                     .fillMaxWidth()
                     .height(30.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        if (reversing) Palette.InputBg else Color.White.copy(alpha = 0.65f),
-                    )
+                    .realGlassRow(RoundedCornerShape(8.dp))
                     .clickable(enabled = !reversing, onClick = onClick)
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1473,7 +1487,7 @@ private fun AgentBar(
         Modifier
             .fillMaxWidth()
             .height(40.dp)
-            .glassCard(RoundedCornerShape(12.dp))
+            .realGlassCard(RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1508,6 +1522,7 @@ private fun AgentBar(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .weight(1f)
+                        .glassPressable()
                         .clickable(onClick = onPickModel),
                 )
             }
@@ -1524,7 +1539,9 @@ private fun TogglePill(enabled: Boolean, onToggle: () -> Unit) {
             .width(34.dp)
             .height(20.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (enabled) Palette.Purple else Palette.InputBg)
+            .background(if (enabled) Palette.Purple else Color.White.copy(alpha = 0.5f))
+            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+            .glassPressable()
             .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center,
     ) {
@@ -1567,7 +1584,20 @@ private fun GenerateButton(loading: Boolean, onClick: () -> Unit) {
                 scaleX = scaleVal
                 scaleY = scaleVal
             }
-            .background(Palette.ButtonBlue, RoundedCornerShape(10.dp))
+            .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(10.dp))
+            .drawBehind {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.30f),
+                            Color.Transparent,
+                        ),
+                        startY = 0f,
+                        endY = size.height * 0.5f,
+                    ),
+                )
+            }
+            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -1601,11 +1631,19 @@ private val NavInactive = Color(0xFF7E7A8F)
 fun FloatingNav(selected: Int, onSelected: (Int) -> Unit, modifier: Modifier = Modifier) {
     var index by remember { mutableIntStateOf(selected) }
 
+    val liquidEnabled = isLiquidGlassEnabled() &&
+        com.liquidglass.ui.LocalGlassConfig.current.glassLevel >= 1
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .height(46.dp)
-            .glassCard(RoundedCornerShape(23.dp)),
+            .then(
+                if (liquidEnabled) {
+                    Modifier.liquidGlass(RoundedCornerShape(23.dp))
+                } else {
+                    Modifier.glassCard(RoundedCornerShape(23.dp))
+                }
+            ),
     ) {
         Row(Modifier.fillMaxSize()) {
             NAV_TABS.forEachIndexed { i, tab ->

@@ -62,6 +62,7 @@ import com.example.txt2img.data.ImageStore
 import com.example.txt2img.data.MediaSaver
 import com.example.txt2img.data.PrefsJson
 import com.example.txt2img.ui.theme.Palette
+import com.liquidglass.ui.topbar.GlassMediumFlexibleTopAppBar
 import java.io.File
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -188,32 +189,10 @@ fun GalleryTab(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
+            .padding(top = 64.dp)
             .padding(bottom = if (multiMode) 150.dp else 76.dp),
     ) {
         Column(Modifier.fillMaxSize()) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .padding(start = 2.dp, end = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text(
-                        "作品",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Palette.InkTitle,
-                        letterSpacing = 0.2.sp,
-                    )
-                    Text(
-                        if (multiMode) "已选 ${selectedSet.size} 张 · 可批量归类 / 删除" else "点击查看 · 长按多选 / 归类 / 删除",
-                        fontSize = 9.sp,
-                        color = Palette.InkLight,
-                    )
-                }
-            }
-
             // 分类筛选条（支持长按操作：移动位置 / 重命名 / 删除）
             Row(
                 Modifier
@@ -235,8 +214,7 @@ fun GalleryTab(
                 }
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.White.copy(alpha = 0.7f))
+                        .glassChip(RoundedCornerShape(10.dp))
                         .clickable { showNewCat = true }
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 ) {
@@ -256,12 +234,19 @@ fun GalleryTab(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .realGlassCard(RoundedCornerShape(18.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Icon(
                         Icons.Filled.PhotoLibrary,
                         contentDescription = null,
                         tint = Palette.InkLight,
                         modifier = Modifier.size(28.dp),
                     )
+                }
                     Spacer(Modifier.height(10.dp))
                     Text(
                         if (filter == null) "暂无作品" else "该分类暂无作品",
@@ -291,8 +276,19 @@ fun GalleryTab(
                                 Modifier
                                     .fillMaxWidth()
                                     .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (sel) Palette.CreditBg else Color.Transparent)
+                                    .realGlassCard(RoundedCornerShape(10.dp))
+                                    .then(
+                                        if (sel) {
+                                            Modifier.border(
+                                                1.5.dp,
+                                                Palette.Purple,
+                                                RoundedCornerShape(10.dp),
+                                            )
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
+                                    .glassPressable()
                                     .combinedClickable(
                                         onClick = {
                                             if (multiMode) {
@@ -309,7 +305,10 @@ fun GalleryTab(
                                 AsyncImage(
                                     model = file,
                                     contentDescription = e.prompt,
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(2.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
                                 )
                                 if (e.type == "reverse") {
                                     Box(
@@ -317,7 +316,8 @@ fun GalleryTab(
                                             .align(Alignment.TopStart)
                                             .padding(6.dp)
                                             .clip(RoundedCornerShape(99.dp))
-                                            .background(Palette.Purple.copy(alpha = 0.9f))
+                                            .background(Palette.Purple.copy(alpha = 0.85f))
+                                            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(99.dp))
                                             .padding(horizontal = 7.dp, vertical = 2.dp),
                                     ) {
                                         Text(
@@ -334,14 +334,14 @@ fun GalleryTab(
                                             .align(Alignment.TopEnd)
                                             .padding(6.dp)
                                             .size(18.dp)
-                                            .clip(RoundedCornerShape(4.dp))
+                                            .clip(RoundedCornerShape(6.dp))
                                             .background(
                                                 if (sel) Palette.Purple else Color.White.copy(alpha = 0.85f),
                                             )
                                             .border(
-                                                width = if (sel) 0.dp else 1.dp,
-                                                color = Palette.InkLight,
-                                                shape = RoundedCornerShape(4.dp),
+                                                width = 1.dp,
+                                                color = if (sel) Color.White.copy(alpha = 0.5f) else Palette.InkLight,
+                                                shape = RoundedCornerShape(6.dp),
                                             ),
                                         contentAlignment = Alignment.Center,
                                     ) {
@@ -372,7 +372,7 @@ fun GalleryTab(
                     .padding(bottom = 88.dp)
                     .fillMaxWidth()
                     .height(40.dp)
-                    .glassCard(RoundedCornerShape(14.dp))
+                    .realGlassCard(RoundedCornerShape(14.dp))
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -385,8 +385,7 @@ fun GalleryTab(
                 Spacer(Modifier.width(6.dp))
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
                         .clickable(enabled = selectedSet.isNotEmpty()) { multiMove = true }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
@@ -400,8 +399,8 @@ fun GalleryTab(
                 Spacer(Modifier.width(6.dp))
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFFBEDED))
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .background(Color(0xCCFBEDED))
                         .clickable(enabled = selectedSet.isNotEmpty()) { multiDelete = true }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
@@ -415,8 +414,7 @@ fun GalleryTab(
                 Spacer(Modifier.width(6.dp))
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
                         .clickable(onClick = ::exitMulti)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
@@ -694,7 +692,19 @@ private fun FilterChip(
 ) {
     val base = Modifier
         .clip(RoundedCornerShape(10.dp))
-        .background(if (selected) Palette.Purple else Color.White.copy(alpha = 0.7f))
+        .background(
+            if (selected) {
+                Palette.Purple.copy(alpha = 0.88f)
+            } else {
+                Color.White.copy(alpha = 0.45f)
+            }
+        )
+        .border(
+            width = 1.dp,
+            color = if (selected) Color.White.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.35f),
+            shape = RoundedCornerShape(10.dp),
+        )
+        .glassPressable()
         .padding(horizontal = 10.dp, vertical = 4.dp)
     val clickMod = if (onLongClick != null) {
         @OptIn(ExperimentalFoundationApi::class)

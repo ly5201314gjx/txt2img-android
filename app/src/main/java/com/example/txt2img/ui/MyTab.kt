@@ -4,6 +4,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,11 +33,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -46,8 +55,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +72,7 @@ import com.example.txt2img.data.ProviderConfig
 import com.example.txt2img.net.ImageClient
 import com.example.txt2img.ui.theme.Palette
 import com.example.txt2img.util.SystemUtils
+import com.liquidglass.ui.topbar.GlassMediumFlexibleTopAppBar
 import kotlinx.coroutines.launch
 
 private val ErrorRed = Color(0xFFC2473F)
@@ -147,31 +159,10 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 10.dp)
+            .padding(top = 64.dp)
             .padding(bottom = 76.dp),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .padding(start = 2.dp, end = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(
-                    "我的",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Palette.InkTitle,
-                    letterSpacing = 0.2.sp,
-                )
-                Text(
-                    "多供应商模型服务管理",
-                    fontSize = 9.sp,
-                    color = Palette.InkLight,
-                )
-            }
-        }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(8.dp))
 
         providers.forEach { p ->
             ProviderCard(
@@ -218,12 +209,12 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(8.dp))
         }
 
-        // 添加供应商
+        // 添加供应商（虚线玻璃入口）
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(36.dp)
-                .glassCard(RoundedCornerShape(12.dp))
+                .height(40.dp)
+                .dashedGlassCard(RoundedCornerShape(14.dp))
                 .clickable {
                     val id = "p${System.currentTimeMillis()}"
                     val name = "供应商 ${providers.size + 1}"
@@ -235,9 +226,9 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
         ) {
             Text(
                 "＋ 添加供应商",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Palette.InkStrong,
+                color = Palette.InkMid,
             )
         }
 
@@ -258,40 +249,55 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(44.dp)
-                .glassCard(RoundedCornerShape(12.dp))
+                .height(48.dp)
+                .glassCard(RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp)
+                .glassPressable()
                 .clickable {
                     SystemUtils.requestBatteryExemption(context)
                     batteryOk = !SystemUtils.isBatteryOptimized(context)
                 },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                Icons.Filled.PowerSettingsNew,
-                contentDescription = null,
-                tint = Palette.InkMid,
-                modifier = Modifier.size(12.dp),
-            )
-            Spacer(Modifier.width(6.dp))
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(9.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(9.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.PowerSettingsNew,
+                    contentDescription = null,
+                    tint = Palette.InkMid,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     "后台运行保护",
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Palette.InkStrong,
+                    color = Palette.InkTitle,
                 )
                 Text(
                     "允许忽略电池优化，后台生成不中断",
-                    fontSize = 8.sp,
+                    fontSize = 9.sp,
                     color = Palette.InkLight,
                 )
             }
             Text(
-                if (batteryOk) "已开启 ＞" else "未开启 ＞",
+                if (batteryOk) "已开启" else "未开启",
                 fontSize = 10.sp,
-                color = if (batteryOk) Palette.Purple else Palette.InkMid,
+                color = if (batteryOk) Palette.Amber else Palette.InkMid,
                 fontWeight = if (batteryOk) FontWeight.SemiBold else FontWeight.Normal,
+            )
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = Palette.InkLight,
+                modifier = Modifier.size(14.dp),
             )
         }
 
@@ -326,11 +332,12 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                 )
                 Box(
                     Modifier
-                        .width(52.dp)
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
-                        .padding(horizontal = 10.dp),
+                        .width(56.dp)
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.32f), RoundedCornerShape(12.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     BasicTextField(
@@ -344,12 +351,20 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                             }
                         },
                         modifier = Modifier.fillMaxSize(),
-                        textStyle = TextStyle(fontSize = 12.sp, color = Palette.InkStrong),
+                        textStyle = TextStyle(fontSize = 13.sp, color = Palette.InkStrong),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
                         ),
                         cursorBrush = SolidColor(Palette.Purple),
+                        decorationBox = { innerTextField ->
+                            Box(
+                                Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                innerTextField()
+                            }
+                        },
                     )
                 }
                 Spacer(Modifier.width(6.dp))
@@ -373,23 +388,32 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
-                    .glassCard(RoundedCornerShape(12.dp))
+                    .height(48.dp)
+                    .glassCard(RoundedCornerShape(14.dp))
                     .padding(horizontal = 12.dp)
+                    .glassPressable()
                     .clickable { showErrorDialog = true },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Filled.Error,
-                    contentDescription = null,
-                    tint = ErrorRed,
-                    modifier = Modifier.size(12.dp),
-                )
-                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .background(Color(0xFFFBEDED).copy(alpha = 0.55f), RoundedCornerShape(9.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(9.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Error,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         "最近一次请求失败",
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = ErrorRed,
                     )
@@ -397,48 +421,72 @@ fun MyTab(prefs: AppPrefs, modifier: Modifier = Modifier) {
                         Text(
                             java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
                                 .format(java.util.Date(errTime)),
-                            fontSize = 8.sp,
+                            fontSize = 9.sp,
                             color = Palette.InkLight,
                         )
                     }
                 }
                 Text(
-                    "查看详情 ＞",
-                    fontSize = 9.sp,
+                    "查看详情",
+                    fontSize = 10.sp,
                     color = ErrorRed,
+                )
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = Palette.InkLight,
+                    modifier = Modifier.size(14.dp),
                 )
             }
             Spacer(Modifier.height(8.dp))
         }
 
-        // 关于
+        // 关于（品牌行）
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(44.dp)
-                .glassCard(RoundedCornerShape(12.dp))
+                .height(48.dp)
+                .glassCard(RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp)
+                .glassPressable()
                 .clickable { showAbout = true },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                Icons.Filled.Info,
-                contentDescription = null,
-                tint = Palette.InkMid,
-                modifier = Modifier.size(12.dp),
-            )
-            Spacer(Modifier.width(6.dp))
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .background(
+                        Brush.linearGradient(listOf(Palette.BrandSoft, Palette.Purple)),
+                        RoundedCornerShape(9.dp),
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(9.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
             Text(
                 "关于",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = Palette.InkStrong,
+                color = Palette.InkTitle,
             )
             Spacer(Modifier.weight(1f))
             Text(
-                "免责声明 · 联系作者 ＞",
+                "免责声明 · 联系作者",
                 fontSize = 10.sp,
                 color = Palette.InkMid,
+            )
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = Palette.InkLight,
+                modifier = Modifier.size(14.dp),
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -558,30 +606,48 @@ private fun ProviderCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .glassCard(RoundedCornerShape(12.dp)),
+            .realGlassCard(RoundedCornerShape(14.dp)),
     ) {
-        // 头部：三角 + 名称 + 使用中
+        // 头部：渐变首字徽标 + 名称 + 使用中（琥珀徽章）+ 旋转箭头
+        val arrowRotate by animateFloatAsState(
+            targetValue = if (expanded) 90f else 0f,
+            animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
+            label = "arrowRotate",
+        )
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(42.dp)
+                .height(58.dp)
+                .glassPressable()
                 .clickable(onClick = onToggle)
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = Palette.InkMid,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(4.dp))
+            // 首字渐变徽标
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .background(
+                        Brush.linearGradient(listOf(Palette.BrandSoft, Palette.Purple)),
+                        RoundedCornerShape(11.dp),
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(11.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    provider.name.take(1).ifEmpty { "供" },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     provider.name,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Palette.InkStrong,
+                    color = Palette.InkTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -595,31 +661,51 @@ private fun ProviderCard(
                     } else {
                         "未配置接口地址"
                     },
-                    fontSize = 8.sp,
+                    fontSize = 10.sp,
                     color = Palette.InkLight,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             if (isCurrent) {
+                Spacer(Modifier.width(8.dp))
+                // 琥珀金「使用中」徽章
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(99.dp))
-                        .background(Palette.CreditBg)
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                        .background(Color(0xFFFCF1D5))
+                        .border(1.dp, Color(0xFFE2BE62), RoundedCornerShape(99.dp))
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
                 ) {
                     Text(
                         "使用中",
                         fontSize = 8.sp,
-                        color = Palette.Purple,
+                        color = Color(0xFF9A7400),
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                imageVector = if (expanded) {
+                    Icons.Filled.KeyboardArrowDown
+                } else {
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight
+                },
+                contentDescription = null,
+                tint = Palette.InkMid,
+                modifier = Modifier
+                    .size(16.dp)
+                    .graphicsLayer { rotationZ = arrowRotate },
+            )
         }
 
-        if (expanded) {
-            Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(spring(dampingRatio = 0.8f, stiffness = 500f)) + fadeIn(tween(200)),
+            exit = shrinkVertically(spring(dampingRatio = 0.8f, stiffness = 500f)) + fadeOut(tween(150)),
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp).padding(bottom = 14.dp)) {
                 FieldLabel("名称")
                 SettingsField(draft.name, { onDraftChange(draft.copy(name = it)) }, "供应商名称")
                 Spacer(Modifier.height(8.dp))
@@ -632,10 +718,11 @@ private fun ProviderCard(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
-                        .padding(start = 10.dp, end = 4.dp),
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.32f), RoundedCornerShape(12.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                        .padding(start = 14.dp, end = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     BasicTextField(
@@ -666,9 +753,11 @@ private fun ProviderCard(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .height(30.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Palette.ButtonBlue.copy(alpha = 0.92f), RoundedCornerShape(10.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                        .glassPressable()
                         .clickable(enabled = !loading, onClick = onFetch),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -734,13 +823,14 @@ private fun ProviderCard(
                                 Box(
                                     Modifier
                                         .clip(RoundedCornerShape(99.dp))
-                                        .background(Palette.CreditBg)
+                                        .background(Color(0xFFFCF1D5))
+                                        .border(1.dp, Color(0xFFE2BE62), RoundedCornerShape(99.dp))
                                         .padding(horizontal = 7.dp, vertical = 2.dp),
                                 ) {
                                     Text(
                                         "使用中",
                                         fontSize = 8.sp,
-                                        color = Palette.Purple,
+                                        color = Color(0xFF9A7400),
                                         fontWeight = FontWeight.SemiBold,
                                     )
                                 }
@@ -748,7 +838,9 @@ private fun ProviderCard(
                                 Box(
                                     Modifier
                                         .clip(RoundedCornerShape(99.dp))
-                                        .background(Palette.InputBg)
+                                        .background(Color.White.copy(alpha = 0.45f))
+                                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(99.dp))
+                                        .glassPressable()
                                         .clickable { onSelectModel(m) }
                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                 ) {
@@ -769,8 +861,10 @@ private fun ProviderCard(
                         Modifier
                             .weight(1f)
                             .height(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.ButtonBlue)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Palette.ButtonBlue.copy(alpha = 0.92f), RoundedCornerShape(10.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                            .glassPressable()
                             .clickable(onClick = onSave),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -786,7 +880,9 @@ private fun ProviderCard(
                             .weight(1f)
                             .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFFBEDED))
+                            .background(Color(0xCCFBEDED), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onDelete),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -818,28 +914,41 @@ private fun SettingsField(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(38.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Palette.InputBg)
-            .padding(start = 12.dp, end = 12.dp),
+            .height(42.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.32f), RoundedCornerShape(12.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (value.isEmpty()) {
-            Text(
-                placeholder,
-                fontSize = 11.sp,
-                color = Palette.InkLight,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxSize(),
-            textStyle = TextStyle(fontSize = 11.sp, color = Palette.InkStrong),
+            textStyle = TextStyle(
+                fontSize = 12.sp,
+                color = Palette.InkStrong,
+                lineHeight = 16.sp,
+            ),
             singleLine = true,
             cursorBrush = SolidColor(Palette.Purple),
+            decorationBox = { innerTextField ->
+                Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            placeholder,
+                            fontSize = 12.sp,
+                            color = Palette.InkLight.copy(alpha = 0.65f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
         )
     }
 }

@@ -69,7 +69,7 @@ fun GlassImageDialog(
     pickedCat: String = "",
     onPickCategory: (String) -> Unit = {},
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -112,8 +112,8 @@ fun GlassImageDialog(
                         Modifier
                             .weight(1f)
                             .height(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.InputBg)
+                            .glassChip(RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onEdit),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -129,7 +129,9 @@ fun GlassImageDialog(
                             .weight(1f)
                             .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.ButtonBlue)
+                            .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onDismiss),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -147,7 +149,9 @@ fun GlassImageDialog(
                         .fillMaxWidth()
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -176,7 +180,7 @@ fun MultiImageDialog(
     pickedCat: String = "",
     onPickCategory: (String) -> Unit = {},
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -221,8 +225,8 @@ fun MultiImageDialog(
                         Modifier
                             .weight(1f)
                             .height(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.InputBg)
+                            .glassChip(RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onEdit),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -238,7 +242,9 @@ fun MultiImageDialog(
                             .weight(1f)
                             .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.ButtonBlue)
+                            .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onDismiss),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -256,7 +262,9 @@ fun MultiImageDialog(
                         .fillMaxWidth()
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -300,7 +308,19 @@ private fun CatChip(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Palette.Purple else Palette.InputBg)
+            .background(
+                if (selected) {
+                    Palette.Purple.copy(alpha = 0.88f)
+                } else {
+                    Color.White.copy(alpha = 0.45f)
+                }
+            )
+            .border(
+                width = 1.dp,
+                color = if (selected) Color.White.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(10.dp),
+            )
+            .glassPressable()
             .clickable(onClick = onClick)
             .padding(horizontal = 9.dp, vertical = 3.dp),
     ) {
@@ -335,7 +355,7 @@ fun ImageDetailDialog(
     onSaveRef: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -376,7 +396,9 @@ fun ImageDetailDialog(
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.Purple)
+                        .background(Palette.Purple.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onEdit)
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                 ) {
@@ -390,8 +412,8 @@ fun ImageDetailDialog(
                 Spacer(Modifier.width(6.dp))
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable { onCopyPrompt(prompt) }
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                 ) {
@@ -448,8 +470,8 @@ fun ImageDetailDialog(
                     Spacer(Modifier.weight(1f))
                     Box(
                         Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.InputBg)
+                            .glassChip(RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onSaveRef)
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     ) {
@@ -469,7 +491,9 @@ fun ImageDetailDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onSaveImage),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -485,7 +509,9 @@ fun ImageDetailDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFFBEDED))
+                        .background(Color(0xCCFBEDED), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDelete),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -512,7 +538,7 @@ fun ConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -537,8 +563,8 @@ fun ConfirmDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -554,7 +580,9 @@ fun ConfirmDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFFBEDED))
+                        .background(Color(0xCCFBEDED), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onConfirm),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -581,7 +609,7 @@ fun TipDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -607,8 +635,8 @@ fun TipDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -624,7 +652,9 @@ fun TipDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onConfirm),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -650,7 +680,7 @@ fun ActionMenuDialog(
     onPick: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -669,7 +699,9 @@ fun ActionMenuDialog(
                     Modifier
                         .fillMaxWidth()
                         .height(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable { onPick(i) }
                         .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.CenterStart,
@@ -686,8 +718,8 @@ fun ActionMenuDialog(
                 Modifier
                     .fillMaxWidth()
                     .height(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
@@ -712,7 +744,7 @@ fun CategoryPickerDialog(
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -737,8 +769,8 @@ fun CategoryPickerDialog(
                 Modifier
                     .fillMaxWidth()
                     .height(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
@@ -759,7 +791,22 @@ private fun PickerRow(text: String, selected: Boolean, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .height(36.dp)
-            .clickable(onClick = onClick),
+            .background(
+                if (selected) {
+                    Color.White.copy(alpha = 0.30f)
+                } else {
+                    Color.Transparent
+                },
+                RoundedCornerShape(8.dp),
+            )
+            .border(
+                width = 1.dp,
+                color = if (selected) Color.White.copy(alpha = 0.40f) else Color.Transparent,
+                shape = RoundedCornerShape(8.dp),
+            )
+            .glassPressable()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
@@ -800,7 +847,7 @@ fun TextInputDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(initial) }
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -818,8 +865,8 @@ fun TextInputDialog(
                 Modifier
                     .fillMaxWidth()
                     .height(38.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
@@ -847,8 +894,8 @@ fun TextInputDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -864,7 +911,9 @@ fun TextInputDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable {
                             if (text.trim().isNotEmpty()) onConfirm(text.trim())
                         },
@@ -888,7 +937,7 @@ fun TextInputDialog(
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -940,8 +989,8 @@ fun AboutDialog(onDismiss: () -> Unit) {
             Spacer(Modifier.height(4.dp))
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .clickable {
                         runCatching {
                             val intent = Intent(
@@ -965,8 +1014,8 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .height(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
@@ -994,7 +1043,7 @@ fun ModelPickerDialog(
     onGoConfig: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             Column(
                 Modifier
@@ -1030,7 +1079,9 @@ fun ModelPickerDialog(
                             .fillMaxWidth()
                             .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.ButtonBlue)
+                            .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onGoConfig),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -1149,7 +1200,7 @@ fun OptimizePreviewDialog(
     onApply: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onCancel) {
+    GlassDialog(onDismissRequest = onCancel) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1174,8 +1225,8 @@ fun OptimizePreviewDialog(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .padding(8.dp),
             ) {
                 Text(
@@ -1198,8 +1249,8 @@ fun OptimizePreviewDialog(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = 280.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .padding(8.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -1216,8 +1267,8 @@ fun OptimizePreviewDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onCancel),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1233,7 +1284,9 @@ fun OptimizePreviewDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onApply),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1262,7 +1315,7 @@ fun ReverseResultDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1300,8 +1353,8 @@ fun ReverseResultDialog(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = 300.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .padding(8.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -1318,8 +1371,8 @@ fun ReverseResultDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onCopy),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1334,8 +1387,8 @@ fun ReverseResultDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onApplyBox),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1351,7 +1404,9 @@ fun ReverseResultDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onSave),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1368,8 +1423,8 @@ fun ReverseResultDialog(
                 Modifier
                     .fillMaxWidth()
                     .height(28.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1389,7 +1444,7 @@ fun ReverseResultDialog(
  */
 @Composable
 fun PromptViewDialog(prompt: String, onCopy: () -> Unit, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1414,8 +1469,8 @@ fun PromptViewDialog(prompt: String, onCopy: () -> Unit, onDismiss: () -> Unit) 
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = 380.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.InputBg)
+                    .glassChip(RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .padding(10.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -1432,8 +1487,8 @@ fun PromptViewDialog(prompt: String, onCopy: () -> Unit, onDismiss: () -> Unit) 
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onCopy),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1449,7 +1504,9 @@ fun PromptViewDialog(prompt: String, onCopy: () -> Unit, onDismiss: () -> Unit) 
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1475,7 +1532,7 @@ fun PromptEditorDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(prompt) }
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1493,8 +1550,7 @@ fun PromptEditorDialog(
                 Modifier
                     .fillMaxWidth()
                     .height(280.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Palette.InputBg)
+                    .realGlassField(RoundedCornerShape(10.dp))
                     .padding(10.dp),
             ) {
                 BasicTextField(
@@ -1529,8 +1585,8 @@ fun PromptEditorDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1546,7 +1602,9 @@ fun PromptEditorDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable { onConfirm(text) },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1623,7 +1681,7 @@ fun ReorderDialog(
     onDismiss: () -> Unit,
 ) {
     var order by remember { mutableStateOf(items) }
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1694,8 +1752,8 @@ fun ReorderDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1711,7 +1769,9 @@ fun ReorderDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable { onConfirm(order) },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1740,7 +1800,7 @@ fun ErrorDetailDialog(
     onCopyExplain: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    GlassDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1766,7 +1826,9 @@ fun ErrorDetailDialog(
                     .fillMaxWidth()
                     .heightIn(max = 220.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFFBEDED))
+                    .background(Color(0xCCFBEDED), RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .padding(10.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -1783,7 +1845,9 @@ fun ErrorDetailDialog(
                     .fillMaxWidth()
                     .height(32.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Palette.Purple)
+                    .background(Palette.Purple.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                    .glassPressable()
                     .clickable(enabled = !explaining, onClick = onExplain),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1806,8 +1870,8 @@ fun ErrorDetailDialog(
                     )
                     Box(
                         Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Palette.InputBg)
+                            .glassChip(RoundedCornerShape(8.dp))
+                            .glassPressable()
                             .clickable(onClick = onCopyExplain)
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                     ) {
@@ -1824,8 +1888,8 @@ fun ErrorDetailDialog(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(max = 200.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .padding(10.dp)
                         .verticalScroll(rememberScrollState()),
                 ) {
@@ -1843,8 +1907,8 @@ fun ErrorDetailDialog(
                     Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.InputBg)
+                        .glassChip(RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onCopyError),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1860,7 +1924,9 @@ fun ErrorDetailDialog(
                         .weight(1f)
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Palette.ButtonBlue)
+                        .background(Palette.ButtonBlue.copy(alpha = 0.88f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                        .glassPressable()
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
